@@ -22,6 +22,7 @@ import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.database.ValueEventListener;
 
 import java.util.ArrayList;
+import java.util.Collections;
 
 public class MainActivity extends AppCompatActivity {
     ImageView logoutMain;
@@ -71,54 +72,72 @@ public class MainActivity extends AppCompatActivity {
         setupPresenceSystem();
     }
 
+    // UPDATED: This method is now more robust and less prone to race conditions.
     private void fetchFriends() {
         friendsRef.addValueEventListener(new ValueEventListener() {
             @Override
             public void onDataChange(@NonNull DataSnapshot snapshot) {
-                userArrayList.clear();
-
-                if (!snapshot.exists()) {
-                    updateNoFriendsView();
-                    useradapter.notifyDataSetChanged();
-                    return;
-                }
-
+                // Step 1: Get a list of all friend UIDs.
+                ArrayList<String> friendUids = new ArrayList<>();
                 for (DataSnapshot friendSnapshot : snapshot.getChildren()) {
-                    String friendUid = friendSnapshot.getKey();
-                    if (friendUid != null) {
-                        usersRef.child(friendUid).addListenerForSingleValueEvent(new ValueEventListener() {
-                            @Override
-                            public void onDataChange(@NonNull DataSnapshot userSnapshot) {
-                                // To prevent duplicates if the listener fires multiple times quickly
-                                boolean alreadyInList = false;
-                                for (User u : userArrayList) {
-                                    if (u.getUid().equals(userSnapshot.getKey())) {
-                                        alreadyInList = true;
-                                        break;
-                                    }
-                                }
-
-                                if (!alreadyInList) {
-                                    User friend = userSnapshot.getValue(User.class);
-                                    if (friend != null) {
-                                        userArrayList.add(friend);
-                                    }
-                                }
-                                useradapter.notifyDataSetChanged();
-                                updateNoFriendsView();
-                            }
-
-                            @Override
-                            public void onCancelled(@NonNull DatabaseError error) {}
-                        });
-                    }
+                    friendUids.add(friendSnapshot.getKey());
                 }
+                // Step 2: Fetch the details for that list of UIDs.
+                fetchFriendDetails(friendUids);
             }
 
             @Override
-            public void onCancelled(@NonNull DatabaseError error) {}
+            public void onCancelled(@NonNull DatabaseError error) {
+                updateNoFriendsView(); // Handle errors
+            }
         });
     }
+
+    private void fetchFriendDetails(ArrayList<String> friendUids) {
+        userArrayList.clear(); // Start with a fresh list
+
+        if (friendUids.isEmpty()) {
+            useradapter.notifyDataSetChanged();
+            updateNoFriendsView();
+            return;
+        }
+
+        // Use a counter to know when all asynchronous calls are finished.
+        final int[] fetchCounter = {0};
+
+        for (String uid : friendUids) {
+            usersRef.child(uid).addListenerForSingleValueEvent(new ValueEventListener() {
+                @Override
+                public void onDataChange(@NonNull DataSnapshot userSnapshot) {
+                    User friend = userSnapshot.getValue(User.class);
+                    if (friend != null) {
+                        userArrayList.add(friend);
+                    }
+
+                    // Check if this is the last friend to be fetched.
+                    fetchCounter[0]++;
+                    if (fetchCounter[0] == friendUids.size()) {
+                        // All friends have been fetched, now update the UI.
+                        // Optional: Sort the list alphabetically by username.
+                        Collections.sort(userArrayList, (u1, u2) -> u1.getUsername().compareToIgnoreCase(u2.getUsername()));
+                        useradapter.notifyDataSetChanged();
+                        updateNoFriendsView();
+                    }
+                }
+
+                @Override
+                public void onCancelled(@NonNull DatabaseError error) {
+                    // Handle the case where a user profile might be missing
+                    fetchCounter[0]++;
+                    if (fetchCounter[0] == friendUids.size()) {
+                        useradapter.notifyDataSetChanged();
+                        updateNoFriendsView();
+                    }
+                }
+            });
+        }
+    }
+
 
     private void updateNoFriendsView() {
         if (userArrayList.isEmpty()) {
