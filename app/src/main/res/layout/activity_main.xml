@@ -3,112 +3,76 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/main"
-    android:background="@drawable/mainback"
+    android:background="@drawable/backmain"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     tools:context=".MainActivity">
 
     <LinearLayout
-android:id="@+id/llbox"
+        android:id="@+id/llbox"
         android:layout_width="match_parent"
-        android:layout_height="@dimen/_58sdp"
-        android:layout_alignParentLeft="true"
-        android:layout_alignParentRight="true"
-        android:layout_alignParentEnd="true"
-        android:layout_alignParentStart="true"
-
-        android:gravity="right"
-        android:layout_marginStart="30dp"
-        android:layout_marginLeft="30dp"
-        android:layout_marginTop="@dimen/_5sdp"
-        android:layout_marginEnd="31dp"
-        android:layout_marginRight="381dp">
+        android:layout_height="?attr/actionBarSize"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:background="#B0D9C8">
 
         <TextView
-            android:layout_width="10dp"
-            android:layout_height="83dp"
-            android:layout_marginStart="@dimen/_10sdp"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:fontFamily="@font/poppins_bold"
-            android:gravity="center"
+            android:fontFamily="@font/dancing"
             android:text="ChitChat"
             android:textColor="@color/black"
-            android:textSize="@dimen/_20sdp"
+            android:textSize="29sp"
             android:textStyle="bold" />
 
-        <ImageView
-        android:id="@+id/logbtn"
-        android:layout_width="@dimen/_28sdp"
-        android:layout_height="@dimen/_28sdp"
-        android:layout_gravity="center"
-        android:background="@drawable/logout"
-        android:layout_marginRight="@dimen/_10sdp"
-        />
+        <!-- NEW: Button to see friend requests -->
+        <ImageButton
+            android:id="@+id/friend_requests_button"
+            android:layout_width="38dp"
+            android:layout_height="38dp"
+            android:layout_marginRight="@dimen/_15sdp"
+            android:src="@drawable/ic_notifications"
+            android:background="@color/black"
 
-        </LinearLayout>
+            app:tint="@color/white"
+            android:layout_marginEnd="8dp"/>
+
+        <!-- NEW: Button to find new friends -->
+        <ImageButton
+            android:id="@+id/find_friends_button"
+            android:layout_width="38dp"
+            android:layout_height="38dp"
+            android:src="@drawable/people"
+           android:background="@color/white"
+            android:scaleType="fitCenter"
+            android:layout_marginEnd="8dp"/>
+
+        <ImageView
+            android:id="@+id/logbtn"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="@drawable/logout"
+            app:tint="@color/white" />
+
+    </LinearLayout>
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/rcvmain"
+
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_below="@id/llbox"
+        android:padding="8dp"/>
+
+    <TextView
+        android:id="@+id/no_friends_text"
         android:layout_width="wrap_content"
-        android:layout_height="376dp"
-        android:layout_below="@+id/llbox"
-        android:layout_alignParentStart="true"
-        android:layout_alignParentEnd="true"
-        android:layout_alignParentBottom="true"
-        android:layout_marginStart="22dp"
-        android:layout_marginTop="154dp"
-        android:layout_marginEnd="21dp"
-        android:layout_marginBottom="113dp" />
-
-    <ImageView
-        android:layout_width="47dp"
-        android:layout_height="38dp"
-        android:layout_alignParentEnd="true"
-        android:layout_alignParentBottom="true"
-        android:layout_marginEnd="265dp"
-        android:layout_marginBottom="@dimen/_25sdp"
-        android:src="@drawable/camera" />
-
-    <ImageView
-        android:layout_width="47dp"
-        android:layout_height="38dp"
-        android:layout_alignParentEnd="true"
-        android:layout_alignParentBottom="true"
-        android:layout_marginEnd="181dp"
-        android:layout_marginBottom="@dimen/_25sdp"
-        android:src="@drawable/chat" />
-
-    <ImageView
-        android:layout_width="47dp"
-        android:layout_height="38dp"
-        android:layout_alignParentEnd="true"
-        android:layout_alignParentBottom="true"
-        android:layout_marginEnd="97dp"
-        android:layout_marginBottom="@dimen/_25sdp"
-        android:src="@drawable/sett" />
-
-    <ProgressBar
-        android:id="@+id/progressBar"
-        style="@android:style/Widget.DeviceDefault.Light.ProgressBar.Large"
-        android:layout_width="184dp"
-        android:layout_height="43dp"
-        android:layout_alignParentStart="true"
-        android:layout_alignParentTop="true"
-        android:layout_alignParentEnd="true"
-        android:visibility="gone"
-
-        android:layout_alignParentBottom="true"
-        android:layout_marginStart="114dp"
-        android:layout_marginTop="312dp"
-        android:layout_marginEnd="113dp"
-        android:layout_marginBottom="376dp"
-        android:background="@color/white"
-        android:max="100"
-        android:progress="0"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.466"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        android:layout_height="wrap_content"
+        android:text="You have no friends yet. Find some!"
+        android:layout_centerInParent="true"
+        android:visibility="gone"/>
 
 </RelativeLayout>

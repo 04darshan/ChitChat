@@ -8,6 +8,7 @@
     android:background="@drawable/two"
     tools:context=".login">
 
+    <!-- All your other TextViews, EditTexts, Buttons, etc. remain the same -->
     <TextView
         android:id="@+id/textView9"
         android:layout_width="@dimen/_81sdp"
@@ -178,12 +179,25 @@
         android:ems="10"
         android:hint="Username"
         android:inputType="text"
-    android:textColor="@color/black"
+        android:textColor="@color/black"
         app:layout_constraintBottom_toTopOf="@+id/textView5"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintHorizontal_bias="0.321"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/textView9"
         app:layout_constraintVertical_bias="0.416" />
+
+    <!-- NEW: The missing ProgressBar -->
+    <ProgressBar
+        android:id="@+id/progressBar"
+        style="?android:attr/progressBarStyleLarge"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:visibility="visible"/>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

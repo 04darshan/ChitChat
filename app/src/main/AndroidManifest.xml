@@ -12,6 +12,8 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.ChitChat"
         tools:targetApi="31">
+
+        <!-- Your Existing Activities -->
         <activity
             android:name=".chatscreen"
             android:exported="false" />
@@ -26,13 +28,21 @@
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
         <activity
             android:name=".MainActivity"
             android:exported="false" />
+
+        <!-- UPDATED: Added the new SearchUsersActivity -->
+        <activity
+            android:name=".SearchUsersActivity"
+            android:exported="false" />
+        <activity
+            android:name=".FriendRequestsActivity"
+            android:exported="false" />
+
     </application>
 
 </manifest>

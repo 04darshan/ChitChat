@@ -4,6 +4,7 @@ import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
 import android.text.TextUtils;
+import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
@@ -11,24 +12,19 @@ import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 
-import com.google.android.gms.tasks.OnCompleteListener;
-import com.google.android.gms.tasks.OnSuccessListener;
-import com.google.android.gms.tasks.Task;
-import com.google.firebase.auth.AuthResult;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.storage.FirebaseStorage;
 import com.google.firebase.storage.StorageReference;
-import com.google.firebase.storage.UploadTask;
 
 import de.hdodenhof.circleimageview.CircleImageView;
 
 public class registration extends AppCompatActivity {
+    private static final String TAG = "RegistrationActivity"; // For logging
     TextView rtl;
     EditText username, email, pass;
     Button register;
@@ -39,7 +35,7 @@ public class registration extends AppCompatActivity {
     FirebaseDatabase database;
     FirebaseStorage storage;
     String emailPattern = "[a-zA-Z0-9._-]+@[a-z]+\\.+[a-z]+";
-    String imageuri; // This will hold the URL string
+    String imageuri;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -71,28 +67,45 @@ public class registration extends AppCompatActivity {
                 return;
             }
 
-            // ... (rest of the validation)
+            if (!Email.matches(emailPattern)) {
+                email.setError("Please provide a proper email");
+                progressBar.setVisibility(View.GONE);
+                return;
+            }
+
+            if (Pass.length() < 6) {
+                pass.setError("Password must be at least 6 characters");
+                progressBar.setVisibility(View.GONE);
+                return;
+            }
 
             auth.createUserWithEmailAndPassword(Email, Pass).addOnCompleteListener(task -> {
                 if (task.isSuccessful()) {
                     String id = task.getResult().getUser().getUid();
                     DatabaseReference reference = database.getReference().child("user").child(id);
-                    StorageReference storageReference = storage.getReference().child("Upload").child(id);
+
+                    // The path where the profile picture will be stored
+                    StorageReference storageReference = storage.getReference().child("Upload").child(id).child("profile.jpg");
 
                     if (imguri != null) {
                         storageReference.putFile(imguri).addOnCompleteListener(task1 -> {
                             if (task1.isSuccessful()) {
                                 storageReference.getDownloadUrl().addOnSuccessListener(uri -> {
                                     imageuri = uri.toString();
-                                    // UPDATED: Create User object with image URL string and NO password
                                     User user = new User(id, name, Email, imageuri, status);
                                     saveUserAndProceed(reference, user);
                                 });
+                            } else {
+                                progressBar.setVisibility(View.GONE);
+                                // NEW: Add more detailed error logging to see the exact storage error
+                                String errorMessage = task1.getException() != null ? task1.getException().getMessage() : "Unknown error";
+                                Toast.makeText(registration.this, "Image upload failed: " + errorMessage, Toast.LENGTH_LONG).show();
+                                Log.e(TAG, "Image upload failed", task1.getException());
                             }
                         });
                     } else {
-                        // UPDATED: No image was selected
-                        imageuri = "https://firebasestorage.googleapis.com/v0/b/chitchat-e89a5.appspot.com/o/man.png?alt=media&token=48c82302-3f19-482a-870f-0761e3a103c8"; // A default image URL
+                        // If no image is selected, use a default one
+                        imageuri = "https://firebasestorage.googleapis.com/v0/b/chitchat-e89a5.appspot.com/o/man.png?alt=media&token=48c82302-3f19-482a-870f-0761e3a103c8";
                         User user = new User(id, name, Email, imageuri, status);
                         saveUserAndProceed(reference, user);
                     }
@@ -108,6 +121,10 @@ public class registration extends AppCompatActivity {
             intent.setType("image/*");
             intent.setAction(Intent.ACTION_GET_CONTENT);
             startActivityForResult(Intent.createChooser(intent, "Select Picture"), 10);
+        });
+
+        rtl.setOnClickListener(v -> {
+            startActivity(new Intent(registration.this, login.class));
         });
     }
 
