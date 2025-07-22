@@ -9,6 +9,7 @@ import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.bumptech.glide.Glide; // NEW: Import Glide
 import com.google.firebase.auth.FirebaseAuth;
 
 import java.util.ArrayList;
@@ -22,9 +23,16 @@ public class MsgAdapter extends RecyclerView.Adapter {
     int ITEM_SEND = 1;
     int ITEM_RECEIVE = 2;
 
-    public MsgAdapter(Context context, ArrayList<msgModel> messageAdapeerArraylist) {
+    // NEW: Add fields for image URLs
+    String senderImgUrl;
+    String receiverImgUrl;
+
+    // UPDATED: Constructor now accepts image URLs
+    public MsgAdapter(Context context, ArrayList<msgModel> messageAdapeerArraylist, String senderImgUrl, String receiverImgUrl) {
         this.context = context;
         this.messageAdapeerArraylist = messageAdapeerArraylist;
+        this.senderImgUrl = senderImgUrl;
+        this.receiverImgUrl = receiverImgUrl;
     }
 
     @NonNull
@@ -43,14 +51,16 @@ public class MsgAdapter extends RecyclerView.Adapter {
     public void onBindViewHolder(@NonNull RecyclerView.ViewHolder holder, int position) {
         msgModel messages = messageAdapeerArraylist.get(position);
 
-        if (holder instanceof senderViewholder) {
+        if (holder.getClass() == senderViewholder.class) {
             senderViewholder viewholder = (senderViewholder) holder;
             viewholder.msgtxt.setText(messages.getMessage());
-            viewholder.circleImageView.setImageResource(R.drawable.man);
+            // NEW: Load sender's image
+            Glide.with(context).load(senderImgUrl).placeholder(R.drawable.man).into(viewholder.circleImageView);
         } else {
             reciverViewholder viewholder = (reciverViewholder) holder;
             viewholder.msgtxt.setText(messages.getMessage());
-            viewholder.circleImageView.setImageResource(R.drawable.man);
+            // NEW: Load receiver's image
+            Glide.with(context).load(receiverImgUrl).placeholder(R.drawable.man).into(viewholder.circleImageView);
         }
     }
 

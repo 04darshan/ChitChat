@@ -6,14 +6,9 @@ import android.os.Bundle;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
-import android.widget.ProgressBar;
 
-import androidx.activity.EdgeToEdge;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.graphics.Insets;
-import androidx.core.view.ViewCompat;
-import androidx.core.view.WindowInsetsCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -27,98 +22,114 @@ import com.google.firebase.database.ValueEventListener;
 import java.util.ArrayList;
 
 public class MainActivity extends AppCompatActivity {
-    ProgressBar load;
     ImageView logoutMain;
     FirebaseAuth auth;
-    Button ys,no;
     RecyclerView recyclerView;
     Useradapter useradapter;
     FirebaseDatabase firebaseDatabase;
     ArrayList<User> userArrayList;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        EdgeToEdge.enable(this);
         setContentView(R.layout.activity_main);
-        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main), (v, insets) -> {
-            Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
-            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
-            return insets;
-        });
 
-        logoutMain=findViewById(R.id.logbtn);
-        load=findViewById(R.id.progressBar);
+        auth = FirebaseAuth.getInstance();
+        firebaseDatabase = FirebaseDatabase.getInstance();
 
+        if (auth.getCurrentUser() == null) {
+            startActivity(new Intent(MainActivity.this, login.class));
+            finish();
+            return; // Important to return here
+        }
 
-        firebaseDatabase=FirebaseDatabase.getInstance();
-        auth=FirebaseAuth.getInstance();
-
-        DatabaseReference reference=firebaseDatabase.getReference().child("user");
-
-        userArrayList=new ArrayList<>();
+        userArrayList = new ArrayList<>();
+        DatabaseReference reference = firebaseDatabase.getReference().child("user");
         reference.addValueEventListener(new ValueEventListener() {
             @Override
-
             public void onDataChange(@NonNull DataSnapshot snapshot) {
-               
-                userArrayList.clear(); // Clear the list first
-                for (DataSnapshot dataSnapshot: snapshot.getChildren()) {
+                userArrayList.clear();
+                for (DataSnapshot dataSnapshot : snapshot.getChildren()) {
                     User user = dataSnapshot.getValue(User.class);
-                    if (user != null && !user.getUid().equals(auth.getCurrentUser().getUid())) {
-                        userArrayList.add(user); // Optional: exclude current user
+                    if (user != null && !user.getUid().equals(auth.getUid())) {
+                        userArrayList.add(user);
                     }
                 }
                 useradapter.notifyDataSetChanged();
             }
 
+            @Override
+            public void onCancelled(@NonNull DatabaseError error) { }
+        });
+
+        logoutMain = findViewById(R.id.logbtn);
+        recyclerView = findViewById(R.id.rcvmain);
+        recyclerView.setLayoutManager(new LinearLayoutManager(this));
+        useradapter = new Useradapter(MainActivity.this, userArrayList);
+        recyclerView.setAdapter(useradapter);
+
+        logoutMain.setOnClickListener(v -> {
+            Dialog dialog = new Dialog(MainActivity.this);
+            dialog.setContentView(R.layout.dialog_layout);
+            Button ys = dialog.findViewById(R.id.yslgtmain);
+            Button no = dialog.findViewById(R.id.nolgtmain);
+            ys.setOnClickListener(v1 -> {
+                // NEW: Set status to offline before signing out
+                DatabaseReference userStatusRef = firebaseDatabase.getReference().child("user").child(auth.getUid()).child("status");
+                userStatusRef.setValue("Offline");
+
+                FirebaseAuth.getInstance().signOut();
+                startActivity(new Intent(MainActivity.this, login.class));
+                finish();
+            });
+            no.setOnClickListener(v12 -> dialog.dismiss());
+            dialog.show();
+        });
+
+        // NEW: Call the presence system method
+        setupPresenceSystem();
+    }
+
+    // NEW: Method to handle online/offline status
+    private void setupPresenceSystem() {
+        String uid = auth.getUid();
+        if (uid == null) return;
+
+        final DatabaseReference userStatusRef = firebaseDatabase.getReference().child("user").child(uid).child("status");
+        final DatabaseReference connectedRef = FirebaseDatabase.getInstance().getReference(".info/connected");
+
+        connectedRef.addValueEventListener(new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                boolean connected = snapshot.getValue(Boolean.class);
+                if (connected) {
+                    userStatusRef.setValue("Online");
+                    userStatusRef.onDisconnect().setValue("Offline");
+                }
+            }
 
             @Override
             public void onCancelled(@NonNull DatabaseError error) {
-
+                // Could log this error
             }
         });
+    }
 
-
-        logoutMain.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                Dialog dialog=new Dialog(MainActivity.this);
-                dialog.setContentView(R.layout.dialog_layout);
-                ys=dialog.findViewById(R.id.yslgtmain);
-                no=dialog.findViewById(R.id.nolgtmain);
-
-                ys.setOnClickListener(new View.OnClickListener() {
-                    @Override
-                    public void onClick(View v) {
-                        FirebaseAuth.getInstance().signOut();
-                        Intent intent =new Intent(MainActivity.this, login.class);
-                        startActivity(intent);
-
-                    }
-                });
-
-                no.setOnClickListener(new View.OnClickListener() {
-                    @Override
-                    public void onClick(View v) {
-                        dialog.dismiss();
-                    }
-                });
-                dialog.show();
-
-            }
-        });
-
-        recyclerView=findViewById(R.id.rcvmain);
-        recyclerView.setLayoutManager(new LinearLayoutManager(this));
-        useradapter=new Useradapter(MainActivity.this,userArrayList);
-        recyclerView.setAdapter(useradapter);
-
-
-        if(auth.getCurrentUser()==null){
-            Intent intent=new Intent(MainActivity.this,login.class);
-            startActivity(intent);
-            finish();
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // NEW: Set status to "Online" when app is resumed
+        if (auth.getCurrentUser() != null) {
+            firebaseDatabase.getReference().child("user").child(auth.getUid()).child("status").setValue("Online");
         }
     }
 
+    @Override
+    protected void onPause() {
+        super.onPause();
+        // NEW: Set status to "Offline" when app is paused
+        if (auth.getCurrentUser() != null) {
+            firebaseDatabase.getReference().child("user").child(auth.getUid()).child("status").setValue("Offline");
+        }
+    }
 }

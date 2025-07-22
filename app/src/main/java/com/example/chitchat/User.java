@@ -1,42 +1,22 @@
 package com.example.chitchat;
 
-import de.hdodenhof.circleimageview.CircleImageView;
-
 public class User {
-    String profilepic, mail, username, password, uid, lastmessage, status;
-    CircleImageView img;
+    String profilepic, mail, username, uid, status;
 
+    // Default constructor is required for calls to DataSnapshot.getValue(User.class)
     public User() {
     }
 
-    public User(String uid, String username, String mail, String password, String profilepic, String status) {
+    // UPDATED: Cleaned up the constructor. Removed password and CircleImageView.
+    public User(String uid, String username, String mail, String profilepic, String status) {
         this.uid = uid;
         this.username = username;
         this.mail = mail;
-        this.password = password;
         this.profilepic = profilepic;
         this.status = status;
-        this.lastmessage = ""; // Default to empty string
     }
 
-    public CircleImageView getImg() {
-        return img;
-    }
-
-    public void setImg(CircleImageView img) {
-        this.img = img;
-    }
-
-    public User(String id, String name, String email, String pass, CircleImageView img, String status) {
-        this.uid = uid;
-        this.username = username;
-        this.mail = mail;
-        this.password = password;
-        this.img = img;
-        this.status = status;
-        this.lastmessage = "";
-    }
-
+    // Getters and Setters
     public String getProfilepic() {
         return profilepic;
     }
@@ -61,28 +41,12 @@ public class User {
         this.username = username;
     }
 
-    public String getPassword() {
-        return password;
-    }
-
-    public void setPassword(String password) {
-        this.password = password;
-    }
-
     public String getUid() {
         return uid;
     }
 
     public void setUid(String uid) {
         this.uid = uid;
-    }
-
-    public String getLastmessage() {
-        return lastmessage;
-    }
-
-    public void setLastmessage(String lastmessage) {
-        this.lastmessage = lastmessage;
     }
 
     public String getStatus() {

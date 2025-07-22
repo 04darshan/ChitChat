@@ -39,6 +39,7 @@ dependencies {
     implementation("com.intuit.sdp:sdp-android:1.1.1")
     implementation(libs.constraintlayout)
     implementation(libs.firebase.database)
+    implementation ("com.github.bumptech.glide:glide:4.16.0")
     implementation("de.hdodenhof:circleimageview:3.1.0")
     implementation("com.squareup.picasso:picasso:2.8")
     implementation(libs.firebase.storage)
