@@ -28,25 +28,22 @@
             android:textSize="29sp"
             android:textStyle="bold" />
 
-        <!-- NEW: Button to see friend requests -->
         <ImageButton
             android:id="@+id/friend_requests_button"
             android:layout_width="38dp"
             android:layout_height="38dp"
             android:layout_marginRight="@dimen/_15sdp"
             android:src="@drawable/ic_notifications"
-            android:background="@color/black"
-
-            app:tint="@color/white"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            app:tint="@color/black"
             android:layout_marginEnd="8dp"/>
 
-        <!-- NEW: Button to find new friends -->
         <ImageButton
             android:id="@+id/find_friends_button"
             android:layout_width="38dp"
             android:layout_height="38dp"
             android:src="@drawable/people"
-           android:background="@color/white"
+            android:background="?attr/selectableItemBackgroundBorderless"
             android:scaleType="fitCenter"
             android:layout_marginEnd="8dp"/>
 
@@ -54,25 +51,39 @@
             android:id="@+id/logbtn"
             android:layout_width="48dp"
             android:layout_height="48dp"
-            android:background="@drawable/logout"
-            app:tint="@color/white" />
+            android:src="@drawable/logout"
+            />
 
     </LinearLayout>
 
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/rcvmain"
-
+    <!-- UPDATED: Added SwipeRefreshLayout to wrap the list -->
+    <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+        android:id="@+id/swipe_refresh_layout"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_below="@id/llbox"
-        android:padding="8dp"/>
+        android:layout_below="@id/llbox">
 
-    <TextView
-        android:id="@+id/no_friends_text"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="You have no friends yet. Find some!"
-        android:layout_centerInParent="true"
-        android:visibility="gone"/>
+        <!-- The RelativeLayout is needed so the "no friends" text can be centered -->
+        <RelativeLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent">
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/rcvmain"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:padding="8dp"/>
+
+            <TextView
+                android:id="@+id/no_friends_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="You have no friends yet. Find some!"
+                android:layout_centerInParent="true"
+                android:visibility="gone"/>
+
+        </RelativeLayout>
+
+    </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 
 </RelativeLayout>

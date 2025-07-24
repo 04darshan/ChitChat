@@ -13,8 +13,6 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.bumptech.glide.Glide;
-import com.google.android.gms.tasks.OnCompleteListener;
-import com.google.android.gms.tasks.Task;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseError;
@@ -76,13 +74,12 @@ public class chatscreen extends AppCompatActivity {
         layoutManager.setStackFromEnd(true);
         recyclerViewadapter.setLayoutManager(layoutManager);
 
-        // UPDATED: We will create the adapter *after* fetching the sender's image URL
+        // Fetch sender's image to pass to the adapter
         DatabaseReference reference = database.getReference().child("user").child(senderUid);
         reference.addListenerForSingleValueEvent(new ValueEventListener() {
             @Override
             public void onDataChange(@NonNull DataSnapshot snapshot) {
                 senderImg = snapshot.child("profilepic").getValue(String.class);
-                // NEW: Now that we have both image URLs, create the adapter
                 msgAdapter = new MsgAdapter(chatscreen.this, msgesArrylist, senderImg, reciverimg);
                 recyclerViewadapter.setAdapter(msgAdapter);
             }
@@ -90,6 +87,7 @@ public class chatscreen extends AppCompatActivity {
             public void onCancelled(@NonNull DatabaseError error) {}
         });
 
+        // Listen for messages and mark them as seen
         DatabaseReference chatreference = database.getReference().child("chats").child(senderRoom).child("messages");
         chatreference.addValueEventListener(new ValueEventListener() {
             @Override
@@ -97,6 +95,10 @@ public class chatscreen extends AppCompatActivity {
                 msgesArrylist.clear();
                 for (DataSnapshot dataSnapshot : snapshot.getChildren()) {
                     msgModel messagesss = dataSnapshot.getValue(msgModel.class);
+                    // Mark the message as seen if it wasn't sent by the current user
+                    if (messagesss != null && !messagesss.getSenderId().equals(senderUid) && !messagesss.getIsSeen()) {
+                        dataSnapshot.getRef().child("isSeen").setValue(true);
+                    }
                     msgesArrylist.add(messagesss);
                 }
                 if(msgAdapter != null) {
@@ -115,22 +117,46 @@ public class chatscreen extends AppCompatActivity {
                 return;
             }
             msgbox.setText("");
-            Date date = new Date();
-            msgModel modelmsd = new msgModel(msg, senderUid, date.getTime());
-
-            // NEW: Create a map to update the last message for both users
-            Map<String, Object> lastMsgObj = new HashMap<>();
-            lastMsgObj.put("lastMessage", msg);
-            lastMsgObj.put("lastMessageTimestamp", date.getTime());
-
-            DatabaseReference dbRef = database.getReference().child("chats").child(senderRoom);
-
-            dbRef.child("messages").push().setValue(modelmsd).addOnCompleteListener(task -> {
-                if(task.isSuccessful()){
-                    // NEW: Update the last message data in the main chat node
-                    dbRef.updateChildren(lastMsgObj);
-                }
-            });
+            sendMessage(msg);
         });
+    }
+
+    private void sendMessage(String message) {
+        Date date = new Date();
+        // The constructor now includes the 'isSeen' field
+        msgModel modelmsd = new msgModel(message, senderUid, date.getTime());
+
+        DatabaseReference chatRoomRef = database.getReference().child("chats").child(senderRoom);
+
+        // Push the new message object
+        chatRoomRef.child("messages").push().setValue(modelmsd);
+
+        // Update the last message for the main screen preview
+        Map<String, Object> lastMsgObj = new HashMap<>();
+        lastMsgObj.put("lastMessage", message);
+        lastMsgObj.put("lastMessageTimestamp", date.getTime());
+        chatRoomRef.updateChildren(lastMsgObj);
+
+        // Increment the receiver's unread count
+        DatabaseReference receiverUnreadRef = chatRoomRef.child("unreadCount").child(reciveruid);
+        receiverUnreadRef.addListenerForSingleValueEvent(new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                long currentCount = snapshot.exists() ? snapshot.getValue(Long.class) : 0;
+                receiverUnreadRef.setValue(currentCount + 1);
+            }
+            @Override
+            public void onCancelled(@NonNull DatabaseError error) {}
+        });
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // When the user enters the chat, reset their unread count for this chat
+        if (senderRoom != null && senderUid != null) {
+            database.getReference().child("chats").child(senderRoom)
+                    .child("unreadCount").child(senderUid).setValue(0L);
+        }
     }
 }

@@ -13,6 +13,7 @@ import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout; // NEW: Import SwipeRefreshLayout
 
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.database.DataSnapshot;
@@ -35,6 +36,7 @@ public class MainActivity extends AppCompatActivity {
     DatabaseReference usersRef, friendsRef;
     ArrayList<User> userArrayList;
     private Dialog logoutDialog;
+    private SwipeRefreshLayout swipeRefreshLayout; // NEW: Declare SwipeRefreshLayout
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -57,6 +59,7 @@ public class MainActivity extends AppCompatActivity {
         friendRequestsButton = findViewById(R.id.friend_requests_button);
         noFriendsText = findViewById(R.id.no_friends_text);
         recyclerView = findViewById(R.id.rcvmain);
+        swipeRefreshLayout = findViewById(R.id.swipe_refresh_layout); // NEW: Initialize SwipeRefreshLayout
 
         userArrayList = new ArrayList<>();
         useradapter = new Useradapter(MainActivity.this, userArrayList);
@@ -65,6 +68,11 @@ public class MainActivity extends AppCompatActivity {
 
         fetchFriends();
 
+        // NEW: Set up the listener for the refresh gesture
+        swipeRefreshLayout.setOnRefreshListener(() -> {
+            fetchFriends();
+        });
+
         logoutMain.setOnClickListener(v -> showLogoutDialog());
         findFriendsButton.setOnClickListener(v -> startActivity(new Intent(MainActivity.this, SearchUsersActivity.class)));
         friendRequestsButton.setOnClickListener(v -> startActivity(new Intent(MainActivity.this, FriendRequestsActivity.class)));
@@ -72,37 +80,37 @@ public class MainActivity extends AppCompatActivity {
         setupPresenceSystem();
     }
 
-    // UPDATED: This method is now more robust and less prone to race conditions.
     private void fetchFriends() {
-        friendsRef.addValueEventListener(new ValueEventListener() {
+        // NEW: Show the refreshing indicator when fetching data
+        swipeRefreshLayout.setRefreshing(true);
+        friendsRef.addListenerForSingleValueEvent(new ValueEventListener() { // Use addListenerForSingleValueEvent for manual refresh
             @Override
             public void onDataChange(@NonNull DataSnapshot snapshot) {
-                // Step 1: Get a list of all friend UIDs.
                 ArrayList<String> friendUids = new ArrayList<>();
                 for (DataSnapshot friendSnapshot : snapshot.getChildren()) {
                     friendUids.add(friendSnapshot.getKey());
                 }
-                // Step 2: Fetch the details for that list of UIDs.
                 fetchFriendDetails(friendUids);
             }
 
             @Override
             public void onCancelled(@NonNull DatabaseError error) {
-                updateNoFriendsView(); // Handle errors
+                swipeRefreshLayout.setRefreshing(false); // NEW: Stop refreshing on error
+                updateNoFriendsView();
             }
         });
     }
 
     private void fetchFriendDetails(ArrayList<String> friendUids) {
-        userArrayList.clear(); // Start with a fresh list
+        userArrayList.clear();
 
         if (friendUids.isEmpty()) {
             useradapter.notifyDataSetChanged();
             updateNoFriendsView();
+            swipeRefreshLayout.setRefreshing(false); // NEW: Stop refreshing when done
             return;
         }
 
-        // Use a counter to know when all asynchronous calls are finished.
         final int[] fetchCounter = {0};
 
         for (String uid : friendUids) {
@@ -114,30 +122,27 @@ public class MainActivity extends AppCompatActivity {
                         userArrayList.add(friend);
                     }
 
-                    // Check if this is the last friend to be fetched.
                     fetchCounter[0]++;
                     if (fetchCounter[0] == friendUids.size()) {
-                        // All friends have been fetched, now update the UI.
-                        // Optional: Sort the list alphabetically by username.
                         Collections.sort(userArrayList, (u1, u2) -> u1.getUsername().compareToIgnoreCase(u2.getUsername()));
                         useradapter.notifyDataSetChanged();
                         updateNoFriendsView();
+                        swipeRefreshLayout.setRefreshing(false); // NEW: Stop refreshing when all data is loaded
                     }
                 }
 
                 @Override
                 public void onCancelled(@NonNull DatabaseError error) {
-                    // Handle the case where a user profile might be missing
                     fetchCounter[0]++;
                     if (fetchCounter[0] == friendUids.size()) {
                         useradapter.notifyDataSetChanged();
                         updateNoFriendsView();
+                        swipeRefreshLayout.setRefreshing(false); // NEW: Stop refreshing when done
                     }
                 }
             });
         }
     }
-
 
     private void updateNoFriendsView() {
         if (userArrayList.isEmpty()) {
@@ -185,22 +190,6 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onCancelled(@NonNull DatabaseError error) {}
         });
-    }
-
-    @Override
-    protected void onResume() {
-        super.onResume();
-        if (auth.getCurrentUser() != null) {
-            firebaseDatabase.getReference().child("user").child(auth.getUid()).child("status").setValue("Online");
-        }
-    }
-
-    @Override
-    protected void onPause() {
-        super.onPause();
-        if (auth.getCurrentUser() != null) {
-            firebaseDatabase.getReference().child("user").child(auth.getUid()).child("status").setValue("Offline");
-        }
     }
 
     @Override

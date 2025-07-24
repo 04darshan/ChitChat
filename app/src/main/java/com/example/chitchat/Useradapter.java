@@ -1,10 +1,10 @@
 package com.example.chitchat;
 
-import android.content.Context;
 import android.content.Intent;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ImageView;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -17,6 +17,7 @@ import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.database.ValueEventListener;
 
 import java.util.ArrayList;
+
 import de.hdodenhof.circleimageview.CircleImageView;
 
 public class Useradapter extends RecyclerView.Adapter<Useradapter.viewholder> {
@@ -41,31 +42,40 @@ public class Useradapter extends RecyclerView.Adapter<Useradapter.viewholder> {
         holder.username.setText(user.getUsername());
         holder.status.setText(user.getStatus());
 
-        Glide.with(mainActivity)
-                .load(user.getProfilepic())
-                .placeholder(R.drawable.man)
-                .error(R.drawable.man)
-                .into(holder.userimg);
+        // Load the user's profile picture from the URL
+        Glide.with(mainActivity).load(user.getProfilepic()).placeholder(R.drawable.man).into(holder.userimg);
 
-        // NEW: Fetch and set the last message
-        String senderId = mainActivity.auth.getUid();
-        String receiverId = user.getUid();
-        String chatRoomId;
-        if (senderId.hashCode() < receiverId.hashCode()) {
-            chatRoomId = senderId + receiverId;
+        // Logic to show/hide the online status badge
+        if (user.getStatus() != null && user.getStatus().equalsIgnoreCase("Online")) {
+            holder.onlineStatusBadge.setVisibility(View.VISIBLE);
         } else {
-            chatRoomId = receiverId + senderId;
+            holder.onlineStatusBadge.setVisibility(View.GONE);
+        }
+
+        // Logic for the unread message count badge
+        String myUid = mainActivity.auth.getUid();
+        String friendUid = user.getUid();
+        String chatRoomId;
+        if (myUid.hashCode() < friendUid.hashCode()) {
+            chatRoomId = myUid + friendUid;
+        } else {
+            chatRoomId = friendUid + myUid;
         }
 
         FirebaseDatabase.getInstance().getReference().child("chats").child(chatRoomId)
-                .child("lastMessage").addListenerForSingleValueEvent(new ValueEventListener() {
+                .child("unreadCount").child(myUid).addValueEventListener(new ValueEventListener() {
                     @Override
                     public void onDataChange(@NonNull DataSnapshot snapshot) {
-                        if(snapshot.exists()){
-                            String lastMsg = snapshot.getValue(String.class);
-                            holder.lastMessage.setText(lastMsg);
+                        if (snapshot.exists()) {
+                            Long unreadCount = snapshot.getValue(Long.class);
+                            if (unreadCount != null && unreadCount > 0) {
+                                holder.unreadBadge.setText(String.valueOf(unreadCount));
+                                holder.unreadBadge.setVisibility(View.VISIBLE);
+                            } else {
+                                holder.unreadBadge.setVisibility(View.GONE);
+                            }
                         } else {
-                            holder.lastMessage.setText("Tap to chat");
+                            holder.unreadBadge.setVisibility(View.GONE);
                         }
                     }
 
@@ -73,7 +83,7 @@ public class Useradapter extends RecyclerView.Adapter<Useradapter.viewholder> {
                     public void onCancelled(@NonNull DatabaseError error) {}
                 });
 
-
+        // Logic for the click listener to open the chat screen
         holder.itemView.setOnClickListener(v -> {
             Intent intent = new Intent(mainActivity, chatscreen.class);
             intent.putExtra("nameee", user.getUsername());
@@ -90,14 +100,17 @@ public class Useradapter extends RecyclerView.Adapter<Useradapter.viewholder> {
 
     public class viewholder extends RecyclerView.ViewHolder {
         CircleImageView userimg;
-        TextView username, status, lastMessage; // UPDATED: add lastMessage TextView
+        TextView username, status;
+        ImageView onlineStatusBadge;
+        TextView unreadBadge;
 
         public viewholder(@NonNull View itemView) {
             super(itemView);
             userimg = itemView.findViewById(R.id.llprofile_image);
             username = itemView.findViewById(R.id.llname);
             status = itemView.findViewById(R.id.llstatus);
-            lastMessage = itemView.findViewById(R.id.ll_last_message); // UPDATED: find the new view by its ID
+            onlineStatusBadge = itemView.findViewById(R.id.online_status_badge);
+            unreadBadge = itemView.findViewById(R.id.unread_count_badge);
         }
     }
 }
