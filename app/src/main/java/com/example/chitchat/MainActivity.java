@@ -13,7 +13,7 @@ import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
-import androidx.swiperefreshlayout.widget.SwipeRefreshLayout; // NEW: Import SwipeRefreshLayout
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.database.DataSnapshot;
@@ -36,7 +36,7 @@ public class MainActivity extends AppCompatActivity {
     DatabaseReference usersRef, friendsRef;
     ArrayList<User> userArrayList;
     private Dialog logoutDialog;
-    private SwipeRefreshLayout swipeRefreshLayout; // NEW: Declare SwipeRefreshLayout
+    private SwipeRefreshLayout swipeRefreshLayout;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -59,19 +59,17 @@ public class MainActivity extends AppCompatActivity {
         friendRequestsButton = findViewById(R.id.friend_requests_button);
         noFriendsText = findViewById(R.id.no_friends_text);
         recyclerView = findViewById(R.id.rcvmain);
-        swipeRefreshLayout = findViewById(R.id.swipe_refresh_layout); // NEW: Initialize SwipeRefreshLayout
+        swipeRefreshLayout = findViewById(R.id.swipe_refresh_layout);
 
         userArrayList = new ArrayList<>();
         useradapter = new Useradapter(MainActivity.this, userArrayList);
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
         recyclerView.setAdapter(useradapter);
 
-        fetchFriends();
+        // This listener will now update the UI in real-time
+        setupFriendsListener();
 
-        // NEW: Set up the listener for the refresh gesture
-        swipeRefreshLayout.setOnRefreshListener(() -> {
-            fetchFriends();
-        });
+        swipeRefreshLayout.setOnRefreshListener(this::fetchFriendsManual);
 
         logoutMain.setOnClickListener(v -> showLogoutDialog());
         findFriendsButton.setOnClickListener(v -> startActivity(new Intent(MainActivity.this, SearchUsersActivity.class)));
@@ -80,34 +78,57 @@ public class MainActivity extends AppCompatActivity {
         setupPresenceSystem();
     }
 
-    private void fetchFriends() {
-        // NEW: Show the refreshing indicator when fetching data
-        swipeRefreshLayout.setRefreshing(true);
-        friendsRef.addListenerForSingleValueEvent(new ValueEventListener() { // Use addListenerForSingleValueEvent for manual refresh
+    // UPDATED: This is now the primary way friends are loaded and kept in sync.
+    private void setupFriendsListener() {
+        friendsRef.addValueEventListener(new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                // When the friends list changes, get the new list of UIDs
+                ArrayList<String> friendUids = new ArrayList<>();
+                for (DataSnapshot friendSnapshot : snapshot.getChildren()) {
+                    friendUids.add(friendSnapshot.getKey());
+                }
+                // Fetch the details for the new list
+                fetchFriendDetails(friendUids, false); // false because this is not a manual refresh
+            }
+
+            @Override
+            public void onCancelled(@NonNull DatabaseError error) {
+                updateNoFriendsView();
+            }
+        });
+    }
+
+    // This method is now only for the manual swipe-to-refresh gesture
+    private void fetchFriendsManual() {
+        friendsRef.addListenerForSingleValueEvent(new ValueEventListener() {
             @Override
             public void onDataChange(@NonNull DataSnapshot snapshot) {
                 ArrayList<String> friendUids = new ArrayList<>();
                 for (DataSnapshot friendSnapshot : snapshot.getChildren()) {
                     friendUids.add(friendSnapshot.getKey());
                 }
-                fetchFriendDetails(friendUids);
+                fetchFriendDetails(friendUids, true); // true because it's a manual refresh
             }
 
             @Override
             public void onCancelled(@NonNull DatabaseError error) {
-                swipeRefreshLayout.setRefreshing(false); // NEW: Stop refreshing on error
+                swipeRefreshLayout.setRefreshing(false);
                 updateNoFriendsView();
             }
         });
     }
 
-    private void fetchFriendDetails(ArrayList<String> friendUids) {
+    private void fetchFriendDetails(ArrayList<String> friendUids, boolean isManualRefresh) {
+        if (isManualRefresh) {
+            swipeRefreshLayout.setRefreshing(true);
+        }
         userArrayList.clear();
 
         if (friendUids.isEmpty()) {
             useradapter.notifyDataSetChanged();
             updateNoFriendsView();
-            swipeRefreshLayout.setRefreshing(false); // NEW: Stop refreshing when done
+            if (isManualRefresh) swipeRefreshLayout.setRefreshing(false);
             return;
         }
 
@@ -127,7 +148,7 @@ public class MainActivity extends AppCompatActivity {
                         Collections.sort(userArrayList, (u1, u2) -> u1.getUsername().compareToIgnoreCase(u2.getUsername()));
                         useradapter.notifyDataSetChanged();
                         updateNoFriendsView();
-                        swipeRefreshLayout.setRefreshing(false); // NEW: Stop refreshing when all data is loaded
+                        if (isManualRefresh) swipeRefreshLayout.setRefreshing(false);
                     }
                 }
 
@@ -137,7 +158,7 @@ public class MainActivity extends AppCompatActivity {
                     if (fetchCounter[0] == friendUids.size()) {
                         useradapter.notifyDataSetChanged();
                         updateNoFriendsView();
-                        swipeRefreshLayout.setRefreshing(false); // NEW: Stop refreshing when done
+                        if (isManualRefresh) swipeRefreshLayout.setRefreshing(false);
                     }
                 }
             });
