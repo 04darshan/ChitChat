@@ -42,24 +42,30 @@
                 android:layout_width="40dp"
                 android:layout_height="40dp"
                 android:layout_gravity="end"
-                android:maxWidth="@dimen/_30sdp"
-                android:maxHeight="@dimen/_30sdp"
+
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:contentDescription="Find Friends"
-                android:src="@drawable/people"
+                android:src="@drawable/ic_search"
                 app:tint="?attr/colorOnSurface" />
-
-            <!-- Logout Button -->
             <ImageButton
-                android:id="@+id/logbtn"
+                android:id="@+id/people_button"
                 android:layout_width="40dp"
                 android:layout_height="40dp"
                 android:layout_gravity="end"
-                android:layout_marginEnd="8dp"
+                android:layout_marginEnd="4dp"
                 android:background="?attr/selectableItemBackgroundBorderless"
-                android:contentDescription="Logout"
-                android:src="@drawable/logout"
+                android:contentDescription="People you may know"
+                android:src="@drawable/ic_person"
                 app:tint="?attr/colorOnSurface" />
+
+            <ImageView
+                android:id="@+id/logbtn"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:layout_gravity="end"
+                android:contentDescription="Logout"
+                android:src="@drawable/ic_logout"
+                app:tint="?attr/colorOnErrorContainer" />
 
         </com.google.android.material.appbar.MaterialToolbar>
 

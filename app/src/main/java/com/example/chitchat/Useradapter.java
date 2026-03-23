@@ -4,49 +4,37 @@ import android.content.Intent;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.ImageView;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.bumptech.glide.Glide;
-import com.google.firebase.database.DataSnapshot;
-import com.google.firebase.database.DatabaseError;
-import com.google.firebase.database.FirebaseDatabase;
-import com.google.firebase.database.ValueEventListener;
+import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.ListenerRegistration;
 
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Map;
 
 import de.hdodenhof.circleimageview.CircleImageView;
 
 /**
- * ENHANCED Useradapter
+ * Useradapter — Firestore version
  *
- * BUGS FIXED:
- * 1. MEMORY LEAK: Previous version added a new Firebase ValueEventListener on EVERY
- *    onBindViewHolder call with no way to remove them. After scrolling a list of friends,
- *    dozens of orphaned listeners would stack up in Firebase.
- *    FIX: Each ViewHolder stores its own listener reference. When the ViewHolder is recycled
- *    (onViewRecycled), we explicitly remove the listener from Firebase.
- *
- * 2. NULL POINTER: myUid could be null if the user was logged out mid-session.
- *    FIX: Added null-check for myUid before building chatRoomId.
- *
- * ENHANCEMENTS:
- * - Shows online badge as a green dot (via the existing online_status_badge View)
- * - Unread badge updates in real-time and cleans up properly
+ * Key improvement over the old Realtime DB version:
+ * Firestore gives us a ListenerRegistration object for each listener.
+ * We store it in the ViewHolder and call .remove() in onViewRecycled(),
+ * completely eliminating the memory-leak bug from before.
  */
 public class Useradapter extends RecyclerView.Adapter<Useradapter.ViewHolder> {
 
-    private final MainActivity mainActivity;
+    private final MainActivity    mainActivity;
     private final ArrayList<User> userList;
+    private final FirebaseFirestore db;
 
     public Useradapter(MainActivity mainActivity, ArrayList<User> userList) {
         this.mainActivity = mainActivity;
-        this.userList = userList;
+        this.userList     = userList;
+        this.db           = FirebaseFirestore.getInstance();
     }
 
     @NonNull
@@ -70,80 +58,85 @@ public class Useradapter extends RecyclerView.Adapter<Useradapter.ViewHolder> {
                 .circleCrop()
                 .into(holder.userImage);
 
-        // Online status badge (green dot)
+        // Online badge
         boolean isOnline = "Online".equalsIgnoreCase(user.getStatus());
         holder.onlineStatusBadge.setVisibility(isOnline ? View.VISIBLE : View.GONE);
 
-        // BUG FIX: Null-check for myUid
-        String myUid = mainActivity.auth.getUid();
+        String myUid     = mainActivity.auth.getUid();
+        String friendUid = user.getUid();
         if (myUid == null) return;
 
-        String friendUid = user.getUid();
-        // BUG FIX: Use the same lexicographic room ID logic as chatscreen
+        // Lexicographic chat room ID — same formula used in chatscreen.java
         String chatRoomId = myUid.compareTo(friendUid) < 0
                 ? myUid + "_" + friendUid
                 : friendUid + "_" + myUid;
 
-        // BUG FIX: Remove any previously attached listener before attaching a new one
-        holder.detachUnreadListener();
+        // Remove any stale listener from a recycled ViewHolder
+        holder.detachListeners();
 
-        // Attach a fresh unread count listener
-        holder.unreadListenerPath = FirebaseDatabase.getInstance().getReference()
-                .child("chats").child(chatRoomId).child("unreadCount").child(myUid);
+        // ── Unread count listener ────────────────────────────────────
+        // Listens to: chats/{chatRoomId}  field: unreadCount.{myUid}
+        holder.unreadListener = db.collection("chats")
+                .document(chatRoomId)
+                .addSnapshotListener((snapshot, error) -> {
+                    if (snapshot == null || !snapshot.exists()) {
+                        holder.unreadBadge.setVisibility(View.GONE);
+                        return;
+                    }
+                    // unreadCount is stored as a Map<String, Long> inside the doc
+                    Long count = 0L;
+                    Object unreadMap = snapshot.get("unreadCount");
+                    if (unreadMap instanceof java.util.Map) {
+                        Object val = ((java.util.Map<?, ?>) unreadMap).get(myUid);
+                        if (val instanceof Long) count = (Long) val;
+                    }
+                    if (count > 0) {
+                        holder.unreadBadge.setText(count > 99 ? "99+" : String.valueOf(count));
+                        holder.unreadBadge.setVisibility(View.VISIBLE);
+                    } else {
+                        holder.unreadBadge.setVisibility(View.GONE);
+                    }
+                });
 
-        holder.unreadListener = new ValueEventListener() {
-            @Override
-            public void onDataChange(@NonNull DataSnapshot snapshot) {
-                long count = snapshot.exists() && snapshot.getValue(Long.class) != null
-                        ? snapshot.getValue(Long.class) : 0L;
-                if (count > 0) {
-                    holder.unreadBadge.setText(count > 99 ? "99+" : String.valueOf(count));
-                    holder.unreadBadge.setVisibility(View.VISIBLE);
-                } else {
-                    holder.unreadBadge.setVisibility(View.GONE);
-                }
-            }
-            @Override
-            public void onCancelled(@NonNull DatabaseError error) {
-                holder.unreadBadge.setVisibility(View.GONE);
-            }
-        };
-
-        holder.unreadListenerPath.addValueEventListener(holder.unreadListener);
+        // ── Status listener (online dot updates in real-time) ────────
+        holder.statusListener = db.collection("users")
+                .document(friendUid)
+                .addSnapshotListener((snapshot, error) -> {
+                    if (snapshot == null) return;
+                    String status = snapshot.getString("status");
+                    boolean online = "Online".equalsIgnoreCase(status);
+                    holder.onlineStatusBadge.setVisibility(online ? View.VISIBLE : View.GONE);
+                    if (status != null) holder.status.setText(status);
+                });
 
         // Click to open chat
         holder.itemView.setOnClickListener(v -> {
             Intent intent = new Intent(mainActivity, chatscreen.class);
-            intent.putExtra("nameee", user.getUsername());
+            intent.putExtra("nameee",     user.getUsername());
             intent.putExtra("reciverimg", user.getProfilepic());
-            intent.putExtra("uid", user.getUid());
+            intent.putExtra("uid",        user.getUid());
             mainActivity.startActivity(intent);
         });
     }
 
-    // BUG FIX: Remove listeners when ViewHolder is recycled to prevent memory leaks
+    // Detach Firestore listeners when ViewHolder is recycled
     @Override
     public void onViewRecycled(@NonNull ViewHolder holder) {
         super.onViewRecycled(holder);
-        holder.detachUnreadListener();
+        holder.detachListeners();
     }
 
     @Override
-    public int getItemCount() {
-        return userList.size();
-    }
+    public int getItemCount() { return userList.size(); }
 
-    // -----------------------------------------------------------------------
-    // ViewHolder — stores the active listener so it can be removed on recycle
-    // -----------------------------------------------------------------------
+    // ── ViewHolder ───────────────────────────────────────────────────
     static class ViewHolder extends RecyclerView.ViewHolder {
         CircleImageView userImage;
-        TextView username, status, unreadBadge;
-        View onlineStatusBadge;
+        TextView        username, status, unreadBadge;
+        View            onlineStatusBadge;
 
-        // Listener management — key to fixing the memory leak
-        com.google.firebase.database.DatabaseReference unreadListenerPath;
-        ValueEventListener unreadListener;
+        ListenerRegistration unreadListener;
+        ListenerRegistration statusListener;
 
         ViewHolder(@NonNull View itemView) {
             super(itemView);
@@ -154,12 +147,9 @@ public class Useradapter extends RecyclerView.Adapter<Useradapter.ViewHolder> {
             unreadBadge       = itemView.findViewById(R.id.unread_count_badge);
         }
 
-        void detachUnreadListener() {
-            if (unreadListenerPath != null && unreadListener != null) {
-                unreadListenerPath.removeEventListener(unreadListener);
-                unreadListener = null;
-                unreadListenerPath = null;
-            }
+        void detachListeners() {
+            if (unreadListener != null) { unreadListener.remove(); unreadListener = null; }
+            if (statusListener != null) { statusListener.remove(); statusListener = null; }
         }
     }
 }

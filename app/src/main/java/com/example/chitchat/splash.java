@@ -8,16 +8,12 @@ import android.os.Looper;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.SetOptions;
 
-/**
- * ENHANCED splash.java
- *
- * IMPROVEMENTS:
- * - Uses new Handler(Looper.getMainLooper()) — the no-arg Handler() constructor
- *   is deprecated in API 30+ and can cause subtle threading issues.
- * - EdgeToEdge removed here; use the theme's windowBackground for true splash.
- * - 2.5s delay (was 4s — unnecessarily long for a splash screen).
- */
+import java.util.HashMap;
+import java.util.Map;
+
 public class splash extends AppCompatActivity {
 
     private static final long SPLASH_DELAY_MS = 2500;
@@ -30,10 +26,17 @@ public class splash extends AppCompatActivity {
         FirebaseAuth auth = FirebaseAuth.getInstance();
 
         new Handler(Looper.getMainLooper()).postDelayed(() -> {
-            Class<?> destination = (auth.getCurrentUser() != null)
-                    ? MainActivity.class
-                    : login.class;
-            startActivity(new Intent(splash.this, destination));
+            if (auth.getCurrentUser() != null) {
+                // Mark user Online when app opens
+                FirebaseFirestore.getInstance()
+                        .collection("users")
+                        .document(auth.getCurrentUser().getUid())
+                        .set(Map.of("status", "Online"), SetOptions.merge());
+
+                startActivity(new Intent(splash.this, MainActivity.class));
+            } else {
+                startActivity(new Intent(splash.this, login.class));
+            }
             finish();
         }, SPLASH_DELAY_MS);
     }

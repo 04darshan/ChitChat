@@ -132,4 +132,25 @@
         <item name="fontFamily">@font/poppins_regular</item>
     </style>
 
+    <!-- ═══════════════════════════════════════════════════
+         MESSAGE BUBBLE SHAPES
+         MaterialCardView only supports one cardCornerRadius for all corners.
+         These shapeAppearanceOverlay styles give each bubble a
+         "chat tail" on the appropriate corner.
+         ═══════════════════════════════════════════════════ -->
+
+    <!-- Receiver bubble: sharp bottom-start (tail), rounded elsewhere -->
+    <style name="ShapeAppearance.ChitChat.ReceiverBubble" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">20dp</item>
+        <item name="cornerSizeBottomLeft">4dp</item>
+    </style>
+
+    <!-- Sender bubble: sharp bottom-end (tail), rounded elsewhere -->
+    <style name="ShapeAppearance.ChitChat.SenderBubble" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">20dp</item>
+        <item name="cornerSizeBottomRight">4dp</item>
+    </style>
+
 </resources>

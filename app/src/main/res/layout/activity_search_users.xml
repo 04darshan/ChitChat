@@ -1,68 +1,80 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- REDESIGNED: Material You Search Users Screen -->
-<androidx.coordinatorlayout.widget.CoordinatorLayout
+<!--
+    FIXED: Search Users Screen
+    - Removed broken SearchBar + hidden SearchView combo
+    - Replaced with a single always-visible TextInputLayout search field
+    - Keyboard is handled by windowSoftInputMode in the Manifest (see note below)
+-->
+<LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:orientation="vertical"
     android:background="?attr/colorSurface"
     tools:context=".SearchUsersActivity">
 
-    <com.google.android.material.appbar.AppBarLayout
+    <!-- ── Top bar ───────────────────────────────────────── -->
+    <com.google.android.material.appbar.MaterialToolbar
+        android:id="@+id/toolbar"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content">
+        android:layout_height="?attr/actionBarSize"
+        android:background="?attr/colorSurfaceContainer"
+        android:elevation="0dp"
+        app:navigationIcon="@drawable/ic_arrow_back"
+        app:title="Find Friends"
+        app:titleTextAppearance="@style/TextAppearance.Material3.TitleLarge" />
 
-        <com.google.android.material.appbar.MaterialToolbar
-            android:id="@+id/toolbar"
-            android:layout_width="match_parent"
-            android:layout_height="?attr/actionBarSize"
-            app:navigationIcon="@drawable/ic_arrow_back"
-            app:title="Find Friends"
-            app:titleTextAppearance="@style/TextAppearance.Material3.TitleLarge" />
+    <!-- ── Search input — always visible, auto-focused ──── -->
+    <com.google.android.material.textfield.TextInputLayout
+        android:id="@+id/search_container"
+        style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp"
+        android:layout_marginTop="12dp"
+        android:layout_marginBottom="4dp"
+        android:hint="Search by username..."
+        app:startIconDrawable="@drawable/ic_search"
+        app:boxCornerRadiusTopStart="28dp"
+        app:boxCornerRadiusTopEnd="28dp"
+        app:boxCornerRadiusBottomStart="28dp"
+        app:boxCornerRadiusBottomEnd="28dp">
 
-        <!-- Search bar below toolbar -->
-        <LinearLayout
-            android:id="@+id/search_container"
+        <!--
+            This is the ONLY search input. It replaces the broken
+            SearchBar + hidden SearchView combo.
+            The Java wires onTextChanged directly to this EditText.
+        -->
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/search_view"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:paddingStart="16dp"
-            android:paddingEnd="16dp"
-            android:paddingBottom="12dp">
+            android:fontFamily="@font/poppins_regular"
+            android:imeOptions="actionSearch"
+            android:inputType="text"
+            android:maxLines="1"
+            android:textSize="15sp" />
 
-            <com.google.android.material.search.SearchBar
-                android:id="@+id/search_bar"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:hint="Search by username..."
-                app:navigationIcon="@drawable/ic_search" />
+    </com.google.android.material.textfield.TextInputLayout>
 
-            <!-- Hidden SearchView that SearchBar delegates to -->
-            <androidx.appcompat.widget.SearchView
-                android:id="@+id/search_view"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:visibility="gone"
-                app:queryHint="Search by username..." />
-
-        </LinearLayout>
-
-    </com.google.android.material.appbar.AppBarLayout>
-
+    <!-- ── Results / empty state ─────────────────────────── -->
     <FrameLayout
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        app:layout_behavior="@string/appbar_scrolling_view_behavior">
+        android:layout_height="0dp"
+        android:layout_weight="1">
 
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/search_recycler_view"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:clipToPadding="false"
-            android:paddingTop="8dp" />
+            android:paddingTop="8dp"
+            android:paddingBottom="16dp" />
 
-        <!-- Hint state when search is empty -->
+        <!-- Empty / hint state -->
         <LinearLayout
             android:id="@+id/search_hint_layout"
             android:layout_width="wrap_content"
@@ -74,10 +86,10 @@
             <ImageView
                 android:layout_width="80dp"
                 android:layout_height="80dp"
-                android:src="@drawable/people"
-                app:tint="?attr/colorOnSurfaceVariant"
                 android:alpha="0.4"
-                android:contentDescription="Search" />
+                android:contentDescription="Search"
+                android:src="@drawable/people"
+                app:tint="?attr/colorOnSurfaceVariant" />
 
             <TextView
                 android:layout_width="wrap_content"
@@ -94,7 +106,7 @@
                 android:layout_marginTop="6dp"
                 android:fontFamily="@font/poppins_regular"
                 android:gravity="center"
-                android:text="Search by username to find\nand connect with friends"
+                android:text="Type a username to search\nand connect with friends"
                 android:textColor="?attr/colorOnSurfaceVariant"
                 android:textSize="13sp" />
 
@@ -102,4 +114,4 @@
 
     </FrameLayout>
 
-</androidx.coordinatorlayout.widget.CoordinatorLayout>
+</LinearLayout>

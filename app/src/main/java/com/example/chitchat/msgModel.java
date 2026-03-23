@@ -1,44 +1,37 @@
 package com.example.chitchat;
 
+import com.google.firebase.Timestamp;
+
 /**
- * ENHANCED msgModel
- *
- * IMPROVEMENT: Added imageUrl field to support image sharing (future feature).
- * The existing isSeen + timestamp fields are unchanged and fully wired up.
+ * Message model — Firestore compatible.
+ * Uses Firestore Timestamp instead of long for proper server-side ordering.
  */
 public class msgModel {
+    private String    message;
+    private String    senderId;
+    private Timestamp timestamp;  // Firestore server timestamp
+    private boolean   isSeen;
+    private String    imageUrl;   // future: image messages
 
-    private String message;
-    private String senderId;
-    private long   timestamp;
-    private boolean isSeen;
-    private String imageUrl; // NEW: for image message support
+    public msgModel() {} // required by Firestore
 
-    // Required no-arg constructor for Firebase DataSnapshot.getValue()
-    public msgModel() {}
-
-    public msgModel(String message, String senderId, long timestamp) {
+    public msgModel(String message, String senderId) {
         this.message   = message;
         this.senderId  = senderId;
-        this.timestamp = timestamp;
         this.isSeen    = false;
         this.imageUrl  = null;
+        // timestamp is set server-side via FieldValue.serverTimestamp()
     }
 
-    // --- Getters & Setters ---
+    public String    getMessage()   { return message; }
+    public String    getSenderId()  { return senderId; }
+    public Timestamp getTimestamp() { return timestamp; }
+    public boolean   getIsSeen()    { return isSeen; }
+    public String    getImageUrl()  { return imageUrl; }
 
-    public String getMessage()  { return message; }
-    public void   setMessage(String message) { this.message = message; }
-
-    public String getSenderId() { return senderId; }
-    public void   setSenderId(String senderId) { this.senderId = senderId; }
-
-    public long   getTimestamp() { return timestamp; }
-    public void   setTimestamp(long timestamp) { this.timestamp = timestamp; }
-
-    public boolean getIsSeen() { return isSeen; }
-    public void    setIsSeen(boolean seen) { this.isSeen = seen; }
-
-    public String getImageUrl() { return imageUrl; }
-    public void   setImageUrl(String imageUrl) { this.imageUrl = imageUrl; }
+    public void setMessage(String message)      { this.message   = message; }
+    public void setSenderId(String senderId)    { this.senderId  = senderId; }
+    public void setTimestamp(Timestamp ts)      { this.timestamp = ts; }
+    public void setIsSeen(boolean seen)         { this.isSeen    = seen; }
+    public void setImageUrl(String imageUrl)    { this.imageUrl  = imageUrl; }
 }

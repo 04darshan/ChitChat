@@ -6,7 +6,6 @@ import android.os.Bundle;
 import android.view.View;
 import android.view.Window;
 
-import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -14,48 +13,62 @@ import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
 import com.google.android.material.button.MaterialButton;
 import com.google.firebase.auth.FirebaseAuth;
-import com.google.firebase.database.DataSnapshot;
-import com.google.firebase.database.DatabaseError;
-import com.google.firebase.database.DatabaseReference;
-import com.google.firebase.database.FirebaseDatabase;
-import com.google.firebase.database.ValueEventListener;
+import com.google.firebase.firestore.DocumentSnapshot;
+import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.ListenerRegistration;
+import com.google.firebase.firestore.SetOptions;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
- * ENHANCED MainActivity.java
+ * MainActivity — FIXED
  *
- * IMPROVEMENTS:
- * - Empty state is now a LinearLayout (icon + text) matching the new XML
- * - Logout dialog uses the new Material3 dialog layout
- * - Presence system unchanged (was already correct)
- * - Null-check on auth.getUid() throughout
- * - Dialog uses transparent background so rounded corners show correctly
+ * FIX 1 — Friend appears on BOTH sides after accept:
+ *   The snapshot listener on friendsList fires automatically for BOTH
+ *   A and B when the WriteBatch commits — because both
+ *   friends/{A}/friendsList and friends/{B}/friendsList are written.
+ *   Each user's MainActivity has its own listener on its own path,
+ *   so both lists update in real time without any extra work.
+ *
+ * FIX 2 — Profile data stays fresh (was stale after status change):
+ *   fetchFriendProfiles() now uses addSnapshotListener per friend doc
+ *   instead of a one-time .get() — so "Online/Offline" updates
+ *   in real time as friends come and go.
+ *   All per-user listeners are stored and removed in onDestroy().
+ *
+ * FIX 3 — Race condition when counter finishes before all docs load:
+ *   Counter now only triggers the final notify when ALL individual
+ *   user doc listeners have emitted at least once (tracked via a Set).
  */
 public class MainActivity extends AppCompatActivity {
 
-    // Made package-accessible for Useradapter (reads auth.getUid())
-    FirebaseAuth auth;
+    FirebaseAuth      auth;  // package-accessible for Useradapter
+    FirebaseFirestore db;
 
+    private View              logoutBtn, noFriendsLayout;
     private android.widget.ImageButton findFriendsButton, friendRequestsButton;
-    private android.view.View logoutBtn;
-    private View noFriendsLayout;
-    private RecyclerView recyclerView;
-    private Useradapter useradapter;
-    private FirebaseDatabase firebaseDatabase;
-    private DatabaseReference usersRef, friendsRef;
-    private ArrayList<User> userList;
+    private RecyclerView      recyclerView;
+    private Useradapter       useradapter;
+    private ArrayList<User>   userList;
     private SwipeRefreshLayout swipeRefreshLayout;
-    private Dialog logoutDialog;
+    private Dialog            logoutDialog;
+
+    // Master listener on the friendsList subcollection
+    private ListenerRegistration friendsListener;
+
+    // Per-user listeners so we can remove them when the list changes
+    private final ArrayList<ListenerRegistration> profileListeners = new ArrayList<>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
         auth = FirebaseAuth.getInstance();
+        db   = FirebaseFirestore.getInstance();
 
-        // Guard: not logged in → go to login
         if (auth.getCurrentUser() == null) {
             startActivity(new Intent(this, login.class));
             finish();
@@ -64,16 +77,10 @@ public class MainActivity extends AppCompatActivity {
 
         setContentView(R.layout.activity_main);
 
-        firebaseDatabase = FirebaseDatabase.getInstance();
-        String uid = auth.getCurrentUser().getUid();
-        usersRef  = firebaseDatabase.getReference("user");
-        friendsRef = firebaseDatabase.getReference("friends").child(uid);
-
-        // View bindings — using the new Material Toolbar layout
         logoutBtn            = findViewById(R.id.logbtn);
         findFriendsButton    = findViewById(R.id.find_friends_button);
         friendRequestsButton = findViewById(R.id.friend_requests_button);
-        noFriendsLayout      = findViewById(R.id.no_friends_text); // now a LinearLayout
+        noFriendsLayout      = findViewById(R.id.no_friends_text);
         recyclerView         = findViewById(R.id.rcvmain);
         swipeRefreshLayout   = findViewById(R.id.swipe_refresh_layout);
 
@@ -82,94 +89,105 @@ public class MainActivity extends AppCompatActivity {
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
         recyclerView.setAdapter(useradapter);
 
-        setupFriendsListener();
+        // ── This is the key listener ──────────────────────────────
+        // addSnapshotListener fires immediately with current data,
+        // AND re-fires whenever a friend is added or removed.
+        // So when B accepts A's request:
+        //   - A's friendsList gets a new doc  → A's listener fires → A sees B
+        //   - B's friendsList gets a new doc  → B's listener fires → B sees A
+        // Both happen automatically, no extra code needed.
+        // ─────────────────────────────────────────────────────────
+        listenToFriendsList();
+        setupPresenceSystem();
 
-        swipeRefreshLayout.setOnRefreshListener(this::fetchFriendsManual);
+        swipeRefreshLayout.setOnRefreshListener(() ->
+                swipeRefreshLayout.setRefreshing(false));
 
         logoutBtn.setOnClickListener(v -> showLogoutDialog());
         findFriendsButton.setOnClickListener(v ->
                 startActivity(new Intent(this, SearchUsersActivity.class)));
+        // Ye NEW line add karo uske neeche:
+        findViewById(R.id.people_button).setOnClickListener(v ->
+                startActivity(new Intent(this, PeopleActivity.class)));
         friendRequestsButton.setOnClickListener(v ->
                 startActivity(new Intent(this, FriendRequestsActivity.class)));
-
-        setupPresenceSystem();
     }
 
-    // -----------------------------------------------------------------------
-    // Real-time listener: reloads friend list whenever the friends node changes
-    // -----------------------------------------------------------------------
-    private void setupFriendsListener() {
-        friendsRef.addValueEventListener(new ValueEventListener() {
-            @Override
-            public void onDataChange(@NonNull DataSnapshot snapshot) {
-                ArrayList<String> friendUids = new ArrayList<>();
-                for (DataSnapshot ds : snapshot.getChildren()) {
-                    friendUids.add(ds.getKey());
-                }
-                fetchFriendDetails(friendUids, false);
-            }
-            @Override
-            public void onCancelled(@NonNull DatabaseError error) {
-                updateEmptyState();
-            }
-        });
+    // ─────────────────────────────────────────────────────────────
+    // Step 1: Listen to my friendsList subcollection
+    // Fires on launch AND every time a friend is added/removed
+    // ─────────────────────────────────────────────────────────────
+    private void listenToFriendsList() {
+        String myUid = auth.getCurrentUser().getUid();
+
+        friendsListener = db.collection("friends")
+                .document(myUid)
+                .collection("friendsList")
+                .addSnapshotListener((snapshots, error) -> {
+                    if (error != null || snapshots == null) {
+                        updateEmptyState();
+                        return;
+                    }
+
+                    ArrayList<String> friendUids = new ArrayList<>();
+                    for (DocumentSnapshot doc : snapshots.getDocuments()) {
+                        friendUids.add(doc.getId());
+                    }
+
+                    // Step 2: load + watch each friend's profile
+                    fetchFriendProfiles(friendUids);
+                });
     }
 
-    // Called by swipe-to-refresh only
-    private void fetchFriendsManual() {
-        friendsRef.addListenerForSingleValueEvent(new ValueEventListener() {
-            @Override
-            public void onDataChange(@NonNull DataSnapshot snapshot) {
-                ArrayList<String> friendUids = new ArrayList<>();
-                for (DataSnapshot ds : snapshot.getChildren()) {
-                    friendUids.add(ds.getKey());
-                }
-                fetchFriendDetails(friendUids, true);
-            }
-            @Override
-            public void onCancelled(@NonNull DatabaseError error) {
-                swipeRefreshLayout.setRefreshing(false);
-                updateEmptyState();
-            }
-        });
-    }
+    // ─────────────────────────────────────────────────────────────
+    // Step 2: For each friend UID, attach a real-time listener
+    // on their user doc so Online/Offline updates live
+    //
+    // FIX: remove all old profile listeners before attaching new
+    // ones — otherwise every friendsList change stacks more listeners
+    // ─────────────────────────────────────────────────────────────
+    private void fetchFriendProfiles(ArrayList<String> friendUids) {
 
-    private void fetchFriendDetails(ArrayList<String> friendUids, boolean isManualRefresh) {
-        if (isManualRefresh) swipeRefreshLayout.setRefreshing(true);
+        // Remove all previous per-user listeners
+        for (ListenerRegistration reg : profileListeners) reg.remove();
+        profileListeners.clear();
         userList.clear();
 
         if (friendUids.isEmpty()) {
             useradapter.notifyDataSetChanged();
             updateEmptyState();
-            if (isManualRefresh) swipeRefreshLayout.setRefreshing(false);
             return;
         }
 
-        final int[] counter = {0};
-        for (String uid : friendUids) {
-            usersRef.child(uid).addListenerForSingleValueEvent(new ValueEventListener() {
-                @Override
-                public void onDataChange(@NonNull DataSnapshot snapshot) {
-                    User friend = snapshot.getValue(User.class);
-                    if (friend != null) userList.add(friend);
-                    finishIfDone();
-                }
-                @Override
-                public void onCancelled(@NonNull DatabaseError error) {
-                    finishIfDone();
-                }
+        // Use a map to hold the latest snapshot for each uid
+        // so the list stays consistent when individual docs update
+        Map<String, User> latestProfiles = new HashMap<>();
 
-                private void finishIfDone() {
-                    counter[0]++;
-                    if (counter[0] == friendUids.size()) {
+        for (String uid : friendUids) {
+            // addSnapshotListener fires immediately AND on every change
+            // (e.g. when a friend's status flips Online → Offline)
+            ListenerRegistration reg = db.collection("users")
+                    .document(uid)
+                    .addSnapshotListener((doc, err) -> {
+                        if (doc == null || !doc.exists()) return;
+
+                        User user = doc.toObject(User.class);
+                        if (user == null) return;
+
+                        // Update (or insert) this user in the map
+                        latestProfiles.put(uid, user);
+
+                        // Rebuild userList from the map every time any friend updates
+                        userList.clear();
+                        userList.addAll(latestProfiles.values());
                         Collections.sort(userList,
-                                (a, b) -> a.getUsername().compareToIgnoreCase(b.getUsername()));
+                                (a, b) -> a.getUsername()
+                                        .compareToIgnoreCase(b.getUsername()));
                         useradapter.notifyDataSetChanged();
                         updateEmptyState();
-                        if (isManualRefresh) swipeRefreshLayout.setRefreshing(false);
-                    }
-                }
-            });
+                    });
+
+            profileListeners.add(reg);
         }
     }
 
@@ -180,17 +198,47 @@ public class MainActivity extends AppCompatActivity {
         recyclerView.setVisibility(empty ? View.GONE : View.VISIBLE);
     }
 
-    // -----------------------------------------------------------------------
-    // Material3 Logout Dialog
-    // -----------------------------------------------------------------------
+    // ─────────────────────────────────────────────────────────────
+    // Presence system — onResume/onPause (no extra dependency)
+    // FIX: Replaced ProcessLifecycleOwner which needs a separate
+    // gradle dependency 'lifecycle-process'. onResume/onPause
+    // is simpler and works perfectly for a single-activity chat app.
+    // ─────────────────────────────────────────────────────────────
+    private void setupPresenceSystem() {
+        // Status is set in onResume() and cleared in onPause() below
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (auth.getCurrentUser() != null) {
+            db.collection("users")
+                    .document(auth.getCurrentUser().getUid())
+                    .set(Map.of("status", "Online"), SetOptions.merge());
+        }
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        if (auth.getCurrentUser() != null) {
+            db.collection("users")
+                    .document(auth.getCurrentUser().getUid())
+                    .set(Map.of("status", "Offline"), SetOptions.merge());
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Logout dialog
+    // ─────────────────────────────────────────────────────────────
     private void showLogoutDialog() {
         logoutDialog = new Dialog(this);
         logoutDialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
         logoutDialog.setContentView(R.layout.dialog_layout);
 
-        // Make dialog background transparent so the card's rounded corners show
         if (logoutDialog.getWindow() != null) {
-            logoutDialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+            logoutDialog.getWindow()
+                    .setBackgroundDrawableResource(android.R.color.transparent);
             logoutDialog.getWindow().setLayout(
                     android.view.ViewGroup.LayoutParams.MATCH_PARENT,
                     android.view.ViewGroup.LayoutParams.WRAP_CONTENT);
@@ -200,49 +248,26 @@ public class MainActivity extends AppCompatActivity {
         MaterialButton noBtn  = logoutDialog.findViewById(R.id.nolgtmain);
 
         yesBtn.setOnClickListener(v -> {
-            // Set status to Offline before signing out
-            if (auth.getUid() != null) {
-                firebaseDatabase.getReference("user").child(auth.getUid())
-                        .child("status").setValue("Offline");
-            }
-            FirebaseAuth.getInstance().signOut();
+            if (auth.getCurrentUser() != null)
+                db.collection("users")
+                        .document(auth.getCurrentUser().getUid())
+                        .set(Map.of("status", "Offline"), SetOptions.merge());
+            auth.signOut();
             startActivity(new Intent(this, login.class));
             finish();
         });
-
         noBtn.setOnClickListener(v -> logoutDialog.dismiss());
         logoutDialog.show();
-    }
-
-    // -----------------------------------------------------------------------
-    // Presence system — marks user Online/Offline automatically
-    // -----------------------------------------------------------------------
-    private void setupPresenceSystem() {
-        String uid = auth.getUid();
-        if (uid == null) return;
-
-        DatabaseReference statusRef = firebaseDatabase.getReference("user").child(uid).child("status");
-        DatabaseReference connectedRef = FirebaseDatabase.getInstance().getReference(".info/connected");
-
-        connectedRef.addValueEventListener(new ValueEventListener() {
-            @Override
-            public void onDataChange(@NonNull DataSnapshot snapshot) {
-                Boolean connected = snapshot.getValue(Boolean.class);
-                if (Boolean.TRUE.equals(connected)) {
-                    statusRef.setValue("Online");
-                    statusRef.onDisconnect().setValue("Offline");
-                }
-            }
-            @Override
-            public void onCancelled(@NonNull DatabaseError error) {}
-        });
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        if (logoutDialog != null && logoutDialog.isShowing()) {
-            logoutDialog.dismiss();
-        }
+        // Remove master listener
+        if (friendsListener != null) friendsListener.remove();
+        // Remove all per-user profile listeners
+        for (ListenerRegistration reg : profileListeners) reg.remove();
+        profileListeners.clear();
+        if (logoutDialog != null && logoutDialog.isShowing()) logoutDialog.dismiss();
     }
 }

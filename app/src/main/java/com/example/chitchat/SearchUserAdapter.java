@@ -4,6 +4,7 @@ import android.content.Context;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -12,123 +13,130 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.bumptech.glide.Glide;
 import com.google.android.material.button.MaterialButton;
 import com.google.firebase.auth.FirebaseAuth;
-import com.google.firebase.database.DatabaseReference;
-import com.google.firebase.database.FirebaseDatabase;
 
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Map;
 
 import de.hdodenhof.circleimageview.CircleImageView;
-import android.widget.TextView;
 
 /**
- * ENHANCED SearchUserAdapter
+ * SearchUserAdapter — FIXED
  *
- * IMPROVEMENTS:
- * - Button re-enabled in onBindViewHolder for recycled views (was staying disabled after scroll)
- * - Uses MaterialButton from new layout (typed correctly in ViewHolder)
- * - Glide uses circleCrop() for consistent avatar rendering
+ * BUG: Was writing to old path  friend_requests/{uid}/requests/{sender}
+ *      FriendRequestsActivity listens on  connections/{uid}/requests
+ *      So requests were written to wrong place — never appeared.
+ *
+ * FIX: Now uses ConnectionManager.sendRequest() which writes to the
+ *      correct path  connections/{recipientUid}/requests/{senderUid}
+ *      AND also writes the sent copy to connections/{myUid}/sent/{recipient}
+ *      — so both paths stay in sync.
  */
-public class SearchUserAdapter extends RecyclerView.Adapter<SearchUserAdapter.SearchViewHolder> {
+public class SearchUserAdapter extends RecyclerView.Adapter<SearchUserAdapter.SearchVH> {
 
-    private final Context context;
-    private final ArrayList<User> userList;
+    private final Context           context;
+    private final ArrayList<User>   userList;
     private final ArrayList<String> friendUids;
     private final ArrayList<String> sentRequestUids;
-    private final FirebaseAuth auth;
+    private final String            myUid;
 
-    public SearchUserAdapter(Context context,
-                             ArrayList<User> userList,
+    public SearchUserAdapter(Context context, ArrayList<User> userList,
                              ArrayList<String> friendUids,
                              ArrayList<String> sentRequestUids) {
         this.context         = context;
         this.userList        = userList;
         this.friendUids      = friendUids;
         this.sentRequestUids = sentRequestUids;
-        this.auth            = FirebaseAuth.getInstance();
+        this.myUid           = FirebaseAuth.getInstance().getUid();
     }
 
     @NonNull
     @Override
-    public SearchViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-        View view = LayoutInflater.from(context)
+    public SearchVH onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+        View v = LayoutInflater.from(context)
                 .inflate(R.layout.search_user_item, parent, false);
-        return new SearchViewHolder(view);
+        return new SearchVH(v);
     }
 
     @Override
-    public void onBindViewHolder(@NonNull SearchViewHolder holder, int position) {
+    public void onBindViewHolder(@NonNull SearchVH holder, int position) {
         User user = userList.get(position);
         holder.username.setText(user.getUsername());
-
         Glide.with(context)
                 .load(user.getProfilepic())
                 .placeholder(R.drawable.man)
                 .circleCrop()
                 .into(holder.profileImage);
 
-        // Always reset button state before setting (for recycled views)
-        updateButtonState(holder.addFriendButton, user.getUid());
+        // Set button state based on current relationship
+        updateButtonState(holder.addBtn, user.getUid());
 
-        holder.addFriendButton.setOnClickListener(v -> {
-            holder.addFriendButton.setEnabled(false);
-            sendFriendRequest(holder.addFriendButton, user.getUid());
+        holder.addBtn.setOnClickListener(v -> {
+            holder.addBtn.setEnabled(false);
+            sendRequest(holder.addBtn, user.getUid());
         });
     }
 
-    private void updateButtonState(MaterialButton button, String userId) {
-        if (friendUids.contains(userId)) {
-            button.setText("Friends ✓");
-            button.setEnabled(false);
-        } else if (sentRequestUids.contains(userId)) {
-            button.setText("Sent");
-            button.setEnabled(false);
+    private void updateButtonState(MaterialButton btn, String uid) {
+        if (friendUids.contains(uid)) {
+            btn.setText("Friends ✓");
+            btn.setEnabled(false);
+        } else if (sentRequestUids.contains(uid)) {
+            btn.setText("Sent");
+            btn.setEnabled(false);
         } else {
-            button.setText("Add");
-            button.setEnabled(true);
+            btn.setText("Add");
+            btn.setEnabled(true);
         }
     }
 
-    private void sendFriendRequest(MaterialButton button, String recipientId) {
-        String senderId = auth.getUid();
-        if (senderId == null) return;
+    /**
+     * FIX: Use ConnectionManager so the request is written to the
+     * correct path that FriendRequestsActivity listens on:
+     *   connections/{recipientUid}/requests/{senderUid}
+     *
+     * No message passed from search screen — user can add a note
+     * from the PeopleActivity via SendRequestBottomSheet instead.
+     */
+    private void sendRequest(MaterialButton btn, String recipientUid) {
+        if (myUid == null) return;
 
-        DatabaseReference requestRef = FirebaseDatabase.getInstance()
-                .getReference("friend_requests")
-                .child(recipientId)
-                .child(senderId);
+        ConnectionManager mgr = new ConnectionManager(myUid);
+        mgr.sendRequest(
+                recipientUid,
+                "",   // no note from search screen
+                new ConnectionManager.Callback() {
+                    @Override
+                    public void onSuccess() {
+                        Toast.makeText(context,
+                                "Request sent!", Toast.LENGTH_SHORT).show();
+                        btn.setText("Sent");
+                        // sentRequestUids listener in SearchUsersActivity
+                        // will update the button state automatically
+                    }
 
-        Map<String, Object> requestData = new HashMap<>();
-        requestData.put("status", "pending");
-        requestData.put("timestamp", System.currentTimeMillis());
-
-        requestRef.setValue(requestData).addOnCompleteListener(task -> {
-            if (task.isSuccessful()) {
-                Toast.makeText(context, "Friend request sent!", Toast.LENGTH_SHORT).show();
-                // sentRequestUids listener in the Activity will update button state automatically
-            } else {
-                Toast.makeText(context, "Failed to send request", Toast.LENGTH_SHORT).show();
-                button.setEnabled(true); // re-enable on failure
-            }
-        });
+                    @Override
+                    public void onFailure(@NonNull Exception e) {
+                        Toast.makeText(context,
+                                "Failed: " + e.getMessage(),
+                                Toast.LENGTH_SHORT).show();
+                        btn.setEnabled(true);
+                    }
+                }
+        );
     }
 
     @Override
-    public int getItemCount() {
-        return userList.size();
-    }
+    public int getItemCount() { return userList.size(); }
 
-    static class SearchViewHolder extends RecyclerView.ViewHolder {
+    static class SearchVH extends RecyclerView.ViewHolder {
         CircleImageView profileImage;
-        TextView username;
-        MaterialButton addFriendButton;
+        TextView        username;
+        MaterialButton  addBtn;
 
-        SearchViewHolder(@NonNull View itemView) {
-            super(itemView);
-            profileImage   = itemView.findViewById(R.id.profile_image);
-            username       = itemView.findViewById(R.id.username_text);
-            addFriendButton = itemView.findViewById(R.id.add_friend_button);
+        SearchVH(@NonNull View v) {
+            super(v);
+            profileImage = v.findViewById(R.id.profile_image);
+            username     = v.findViewById(R.id.username_text);
+            addBtn       = v.findViewById(R.id.add_friend_button);
         }
     }
 }

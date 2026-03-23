@@ -2,142 +2,167 @@ package com.example.chitchat;
 
 import android.os.Bundle;
 import android.view.View;
+import android.widget.LinearLayout;
 
-import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.firebase.auth.FirebaseAuth;
-import com.google.firebase.database.DataSnapshot;
-import com.google.firebase.database.DatabaseError;
-import com.google.firebase.database.DatabaseReference;
-import com.google.firebase.database.FirebaseDatabase;
-import com.google.firebase.database.ValueEventListener;
+import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.ListenerRegistration;
+import com.google.firebase.firestore.QueryDocumentSnapshot;
 
 import java.util.ArrayList;
 
 /**
- * ENHANCED FriendRequestsActivity
+ * FriendRequestsActivity — FIXED
  *
- * BUGS FIXED:
- * 1. STALE EMPTY STATE: The empty state was only checked once at the top of
- *    onDataChange. If the last request was accepted/declined, the RecyclerView
- *    remained visible but empty. Now the empty state is checked AFTER all user
- *    detail fetches complete.
+ * BUG 1 — Wrong Firestore path:
+ *   Old SearchUserAdapter was writing to friend_requests/{uid}/requests
+ *   but this activity was listening on connections/{uid}/requests.
+ *   Now SearchUserAdapter uses ConnectionManager which writes to the
+ *   correct path connections/{uid}/requests — everything matches.
  *
- * 2. RACE CONDITION: The old code cleared requestUserList then immediately checked
- *    snapshot.exists() for the empty state — but user details were fetched async,
- *    so the empty state could flash incorrectly. Fixed with a counter pattern.
+ * BUG 2 — orderBy("timestamp") crash:
+ *   When request is first written, serverTimestamp() is async — the
+ *   field arrives as null in the first snapshot, causing the ordered
+ *   query to throw an exception and return nothing.
+ *   FIX: Removed orderBy — requests are shown as they arrive.
+ *   Simple and reliable. Can re-add ordering once timestamps settle.
  *
- * IMPROVEMENT: Back navigation via Toolbar.
+ * BUG 3 — error field not checked:
+ *   The snapshot listener was ignoring the error parameter.
+ *   FIX: Log the error and show empty state instead of silent failure.
  */
 public class FriendRequestsActivity extends AppCompatActivity {
 
-    private RecyclerView recyclerView;
+    private RecyclerView         recyclerView;
     private FriendRequestAdapter adapter;
-    private ArrayList<User> requestUserList;
-    private DatabaseReference requestsRef, usersRef;
-    private View noRequestsLayout; // now a LinearLayout in the new XML
+    private ArrayList<FriendRequestAdapter.RequestItem> requestList;
+    private LinearLayout         emptyState;
+
+    private FirebaseFirestore db;
+    private String            myUid;
+    private ConnectionManager connectionManager;
+    private ListenerRegistration requestsListener;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_friend_requests);
 
-        // Back navigation
         Toolbar toolbar = findViewById(R.id.toolbar);
         if (toolbar != null) {
             setSupportActionBar(toolbar);
-            if (getSupportActionBar() != null) {
+            if (getSupportActionBar() != null)
                 getSupportActionBar().setDisplayHomeAsUpEnabled(true);
-            }
         }
 
-        String myUid = FirebaseAuth.getInstance().getUid();
-        if (myUid == null) {
-            finish();
-            return;
-        }
+        myUid = FirebaseAuth.getInstance().getUid();
+        if (myUid == null) { finish(); return; }
 
-        requestsRef    = FirebaseDatabase.getInstance().getReference("friend_requests").child(myUid);
-        usersRef       = FirebaseDatabase.getInstance().getReference("user");
-        recyclerView   = findViewById(R.id.friend_requests_recycler_view);
-        noRequestsLayout = findViewById(R.id.no_requests_text);
+        db                = FirebaseFirestore.getInstance();
+        connectionManager = new ConnectionManager(myUid);
 
-        requestUserList = new ArrayList<>();
-        adapter = new FriendRequestAdapter(this, requestUserList);
+        recyclerView = findViewById(R.id.friend_requests_recycler_view);
+        emptyState   = findViewById(R.id.no_requests_text);
+        requestList  = new ArrayList<>();
 
+        adapter = new FriendRequestAdapter(this, requestList, connectionManager);
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
         recyclerView.setAdapter(adapter);
 
-        fetchFriendRequests();
+        listenForRequests();
     }
 
     @Override
-    public boolean onSupportNavigateUp() {
-        onBackPressed();
-        return true;
+    public boolean onSupportNavigateUp() { onBackPressed(); return true; }
+
+    private void listenForRequests() {
+        requestsListener = db.collection("connections")
+                .document(myUid)
+                .collection("requests")
+                // FIX: No orderBy — avoids null-timestamp crash on first write
+                .addSnapshotListener((snapshots, error) -> {
+
+                    // FIX: Check error first — was being silently ignored before
+                    if (error != null) {
+                        android.util.Log.e("FriendRequests",
+                                "Listen failed: " + error.getMessage());
+                        updateEmptyState();
+                        return;
+                    }
+
+                    if (snapshots == null) {
+                        updateEmptyState();
+                        return;
+                    }
+
+                    ArrayList<String> senderIds = new ArrayList<>();
+                    ArrayList<ConnectionRequest> reqs = new ArrayList<>();
+
+                    for (QueryDocumentSnapshot doc : snapshots) {
+                        ConnectionRequest req = doc.toObject(ConnectionRequest.class);
+                        senderIds.add(doc.getId()); // doc ID == senderUid
+                        reqs.add(req);
+                    }
+
+                    loadRequestsWithUsers(senderIds, reqs);
+                });
     }
 
-    private void fetchFriendRequests() {
-        requestsRef.addValueEventListener(new ValueEventListener() {
-            @Override
-            public void onDataChange(@NonNull DataSnapshot snapshot) {
-                requestUserList.clear();
+    private void loadRequestsWithUsers(ArrayList<String> senderIds,
+                                       ArrayList<ConnectionRequest> reqs) {
+        requestList.clear();
 
-                if (!snapshot.exists() || snapshot.getChildrenCount() == 0) {
-                    // BUG FIX: Update empty state AFTER clearing the list
-                    adapter.notifyDataSetChanged();
-                    updateEmptyState();
-                    return;
-                }
+        if (senderIds.isEmpty()) {
+            adapter.notifyDataSetChanged();
+            updateEmptyState();
+            return;
+        }
 
-                // Collect all sender IDs
-                ArrayList<String> senderIds = new ArrayList<>();
-                for (DataSnapshot ds : snapshot.getChildren()) {
-                    if (ds.getKey() != null) senderIds.add(ds.getKey());
-                }
+        final int   total = senderIds.size();
+        final int[] done  = {0};
 
-                // BUG FIX: Use a counter to know when all async fetches are done
-                final int[] counter = {0};
-                for (String senderId : senderIds) {
-                    usersRef.child(senderId).addListenerForSingleValueEvent(new ValueEventListener() {
-                        @Override
-                        public void onDataChange(@NonNull DataSnapshot userSnapshot) {
-                            User user = userSnapshot.getValue(User.class);
-                            if (user != null) requestUserList.add(user);
-                            counter[0]++;
-                            if (counter[0] == senderIds.size()) {
-                                // All fetches done — now update UI
-                                adapter.notifyDataSetChanged();
-                                updateEmptyState();
-                            }
+        for (int i = 0; i < senderIds.size(); i++) {
+            final String senderUid      = senderIds.get(i);
+            final ConnectionRequest req = reqs.get(i);
+
+            db.collection("users").document(senderUid).get()
+                    .addOnSuccessListener(doc -> {
+                        User user = doc.toObject(User.class);
+                        if (user != null) {
+                            requestList.add(
+                                    new FriendRequestAdapter.RequestItem(user, req));
                         }
-                        @Override
-                        public void onCancelled(@NonNull DatabaseError error) {
-                            counter[0]++;
-                            if (counter[0] == senderIds.size()) {
-                                adapter.notifyDataSetChanged();
-                                updateEmptyState();
-                            }
+                        done[0]++;
+                        if (done[0] == total) {
+                            adapter.notifyDataSetChanged();
+                            updateEmptyState();
+                        }
+                    })
+                    .addOnFailureListener(e -> {
+                        done[0]++;
+                        if (done[0] == total) {
+                            adapter.notifyDataSetChanged();
+                            updateEmptyState();
                         }
                     });
-                }
-            }
-
-            @Override
-            public void onCancelled(@NonNull DatabaseError error) {
-                updateEmptyState();
-            }
-        });
+        }
     }
 
     private void updateEmptyState() {
-        if (noRequestsLayout == null) return;
-        boolean empty = requestUserList.isEmpty();
-        noRequestsLayout.setVisibility(empty ? View.VISIBLE : View.GONE);
+        boolean empty = requestList.isEmpty();
+        if (emptyState != null)
+            emptyState.setVisibility(empty ? View.VISIBLE : View.GONE);
         recyclerView.setVisibility(empty ? View.GONE : View.VISIBLE);
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (requestsListener != null) requestsListener.remove();
     }
 }

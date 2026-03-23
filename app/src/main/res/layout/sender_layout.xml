@@ -19,14 +19,18 @@
         android:gravity="end"
         android:orientation="vertical">
 
+        <!--
+            FIX: MaterialCardView does NOT support cardCornerRadiusBottomEnd etc.
+            Use shapeAppearanceOverlay to set per-corner radii:
+              topStart=20dp, topEnd=20dp, bottomStart=20dp, bottomEnd=4dp (sharp tail)
+        -->
         <com.google.android.material.card.MaterialCardView
-            app:cardCornerRadius="20dp"
-            app:cardCornerRadiusBottomEnd="4dp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
             app:cardElevation="0dp"
             app:cardBackgroundColor="?attr/colorPrimaryContainer"
             app:strokeWidth="0dp"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content">
+            app:shapeAppearanceOverlay="@style/ShapeAppearance.ChitChat.SenderBubble">
 
             <TextView
                 android:id="@+id/msgsendertyp"

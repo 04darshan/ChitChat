@@ -11,28 +11,25 @@ import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.bumptech.glide.Glide;
+import com.google.firebase.Timestamp;
 import com.google.firebase.auth.FirebaseAuth;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.Locale;
 
 import de.hdodenhof.circleimageview.CircleImageView;
 
 /**
- * ENHANCED MsgAdapter
- * - BUG FIX: Null-check on FirebaseAuth.getCurrentUser() (was crashing when logged out)
- * - ENHANCEMENT: Shows formatted timestamp on each message bubble
- * - ENHANCEMENT: Shows "seen" checkmark on sender messages when isSeen == true
- * - ENHANCEMENT: Uses ViewHolder pattern correctly (no Firebase calls inside onBindViewHolder)
+ * MsgAdapter — Firestore version
+ * Uses Firestore Timestamp for message time formatting.
  */
 public class MsgAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
-    private final Context context;
+    private final Context            context;
     private final ArrayList<msgModel> messageList;
-    private final String senderImgUrl;
-    private final String receiverImgUrl;
+    private final String             senderImgUrl;
+    private final String             receiverImgUrl;
 
     private static final int ITEM_SEND    = 1;
     private static final int ITEM_RECEIVE = 2;
@@ -40,23 +37,20 @@ public class MsgAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     private final SimpleDateFormat timeFormat =
             new SimpleDateFormat("hh:mm a", Locale.getDefault());
 
-    public MsgAdapter(Context context,
-                      ArrayList<msgModel> messageList,
-                      String senderImgUrl,
-                      String receiverImgUrl) {
-        this.context       = context;
-        this.messageList   = messageList;
-        this.senderImgUrl  = senderImgUrl;
+    public MsgAdapter(Context context, ArrayList<msgModel> messageList,
+                      String senderImgUrl, String receiverImgUrl) {
+        this.context        = context;
+        this.messageList    = messageList;
+        this.senderImgUrl   = senderImgUrl;
         this.receiverImgUrl = receiverImgUrl;
     }
 
     @Override
     public int getItemViewType(int position) {
-        msgModel message = messageList.get(position);
-        // BUG FIX: Null-check on currentUser — was crashing when session expired
+        msgModel msg = messageList.get(position);
         FirebaseAuth auth = FirebaseAuth.getInstance();
         if (auth.getCurrentUser() != null
-                && auth.getCurrentUser().getUid().equals(message.getSenderId())) {
+                && auth.getCurrentUser().getUid().equals(msg.getSenderId())) {
             return ITEM_SEND;
         }
         return ITEM_RECEIVE;
@@ -65,83 +59,70 @@ public class MsgAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     @NonNull
     @Override
     public RecyclerView.ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-        LayoutInflater inflater = LayoutInflater.from(context);
+        LayoutInflater inf = LayoutInflater.from(context);
         if (viewType == ITEM_SEND) {
-            View view = inflater.inflate(R.layout.sender_layout, parent, false);
-            return new SenderViewHolder(view);
-        } else {
-            View view = inflater.inflate(R.layout.reciver_layout, parent, false);
-            return new ReceiverViewHolder(view);
+            return new SenderVH(inf.inflate(R.layout.sender_layout, parent, false));
         }
+        return new ReceiverVH(inf.inflate(R.layout.reciver_layout, parent, false));
     }
 
     @Override
     public void onBindViewHolder(@NonNull RecyclerView.ViewHolder holder, int position) {
-        msgModel message = messageList.get(position);
-        String formattedTime = timeFormat.format(new Date(message.getTimestamp()));
+        msgModel msg = messageList.get(position);
 
-        if (holder instanceof SenderViewHolder) {
-            SenderViewHolder senderHolder = (SenderViewHolder) holder;
-            senderHolder.msgText.setText(message.getMessage());
-            senderHolder.timestamp.setText(formattedTime);
+        // Format Firestore Timestamp → "hh:mm a"
+        String time = "";
+        Timestamp ts = msg.getTimestamp();
+        if (ts != null) {
+            time = timeFormat.format(ts.toDate());
+        }
 
-            // Show "seen" double-tick when message has been read
-            if (senderHolder.seenIndicator != null) {
-                senderHolder.seenIndicator.setVisibility(
-                        message.getIsSeen() ? View.VISIBLE : View.GONE);
+        if (holder instanceof SenderVH) {
+            SenderVH h = (SenderVH) holder;
+            h.msgText.setText(msg.getMessage());
+            h.timestamp.setText(time);
+            if (h.seenIndicator != null) {
+                h.seenIndicator.setVisibility(msg.getIsSeen() ? View.VISIBLE : View.GONE);
             }
+            Glide.with(context).load(senderImgUrl)
+                    .placeholder(R.drawable.man).circleCrop().into(h.profileImage);
 
-            // Load avatar (placeholder if null)
-            Glide.with(context)
-                    .load(senderImgUrl)
-                    .placeholder(R.drawable.man)
-                    .circleCrop()
-                    .into(senderHolder.profileImage);
-
-        } else if (holder instanceof ReceiverViewHolder) {
-            ReceiverViewHolder receiverHolder = (ReceiverViewHolder) holder;
-            receiverHolder.msgText.setText(message.getMessage());
-            receiverHolder.timestamp.setText(formattedTime);
-
-            Glide.with(context)
-                    .load(receiverImgUrl)
-                    .placeholder(R.drawable.man)
-                    .circleCrop()
-                    .into(receiverHolder.profileImage);
+        } else if (holder instanceof ReceiverVH) {
+            ReceiverVH h = (ReceiverVH) holder;
+            h.msgText.setText(msg.getMessage());
+            h.timestamp.setText(time);
+            Glide.with(context).load(receiverImgUrl)
+                    .placeholder(R.drawable.man).circleCrop().into(h.profileImage);
         }
     }
 
     @Override
-    public int getItemCount() {
-        return messageList.size();
-    }
+    public int getItemCount() { return messageList.size(); }
 
-    // -----------------------------------------------------------------------
-    // ViewHolders
-    // -----------------------------------------------------------------------
-    static class SenderViewHolder extends RecyclerView.ViewHolder {
+    // ── ViewHolders ──────────────────────────────────────────────────
+    static class SenderVH extends RecyclerView.ViewHolder {
         CircleImageView profileImage;
-        TextView msgText, timestamp;
-        ImageView seenIndicator;
+        TextView        msgText, timestamp;
+        ImageView       seenIndicator;
 
-        SenderViewHolder(@NonNull View itemView) {
-            super(itemView);
-            profileImage  = itemView.findViewById(R.id.profilerggg);
-            msgText       = itemView.findViewById(R.id.msgsendertyp);
-            timestamp     = itemView.findViewById(R.id.msgTimestamp);
-            seenIndicator = itemView.findViewById(R.id.seenIndicator);
+        SenderVH(@NonNull View v) {
+            super(v);
+            profileImage  = v.findViewById(R.id.profilerggg);
+            msgText       = v.findViewById(R.id.msgsendertyp);
+            timestamp     = v.findViewById(R.id.msgTimestamp);
+            seenIndicator = v.findViewById(R.id.seenIndicator);
         }
     }
 
-    static class ReceiverViewHolder extends RecyclerView.ViewHolder {
+    static class ReceiverVH extends RecyclerView.ViewHolder {
         CircleImageView profileImage;
-        TextView msgText, timestamp;
+        TextView        msgText, timestamp;
 
-        ReceiverViewHolder(@NonNull View itemView) {
-            super(itemView);
-            profileImage = itemView.findViewById(R.id.pro);
-            msgText      = itemView.findViewById(R.id.recivertextset);
-            timestamp    = itemView.findViewById(R.id.msgTimestamp);
+        ReceiverVH(@NonNull View v) {
+            super(v);
+            profileImage = v.findViewById(R.id.pro);
+            msgText      = v.findViewById(R.id.recivertextset);
+            timestamp    = v.findViewById(R.id.msgTimestamp);
         }
     }
 }

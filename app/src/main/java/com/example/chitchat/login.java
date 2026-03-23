@@ -13,25 +13,21 @@ import com.google.android.material.progressindicator.CircularProgressIndicator;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textfield.TextInputLayout;
 import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.SetOptions;
 
-/**
- * ENHANCED login.java
- *
- * IMPROVEMENTS:
- * - Uses Material3 TextInputLayout for proper inline error display
- * - Loading state disables the button to prevent double-taps
- * - Cleaner null-safe input reading
- * - Redirects to MainActivity if already logged in
- */
+import java.util.Map;
+
 public class login extends AppCompatActivity {
 
-    private TextInputLayout emailLayout, passwordLayout;
+    private TextInputLayout   emailLayout, passwordLayout;
     private TextInputEditText emailInput, passInput;
-    private MaterialButton loginButton, signupLink;
-    private CircularProgressIndicator progressBar;
-    private View loadingOverlay;
+    private MaterialButton    loginButton, signupLink;
+    private View              loadingOverlay;
 
-    private FirebaseAuth auth;
+    private FirebaseAuth      auth;
+    private FirebaseFirestore db;
+
     private static final String EMAIL_PATTERN = "[a-zA-Z0-9._-]+@[a-z]+\\.+[a-z]+";
 
     @Override
@@ -39,8 +35,9 @@ public class login extends AppCompatActivity {
         super.onCreate(savedInstanceState);
 
         auth = FirebaseAuth.getInstance();
+        db   = FirebaseFirestore.getInstance();
 
-        // If already logged in, skip straight to MainActivity
+        // Already logged in → skip to main
         if (auth.getCurrentUser() != null) {
             startActivity(new Intent(this, MainActivity.class));
             finish();
@@ -55,49 +52,42 @@ public class login extends AppCompatActivity {
         passInput      = findViewById(R.id.loginPassword);
         loginButton    = findViewById(R.id.loginButton);
         signupLink     = findViewById(R.id.lgntosignup);
-        progressBar    = findViewById(R.id.progressBar);
         loadingOverlay = findViewById(R.id.loadingOverlay);
 
         loginButton.setOnClickListener(v -> attemptLogin());
-
         signupLink.setOnClickListener(v -> {
-            startActivity(new Intent(login.this, registration.class));
+            startActivity(new Intent(this, registration.class));
             finish();
         });
     }
 
     private void attemptLogin() {
-        // Clear previous errors
         emailLayout.setError(null);
         passwordLayout.setError(null);
 
         String email = emailInput.getText() != null ? emailInput.getText().toString().trim() : "";
         String pass  = passInput.getText()  != null ? passInput.getText().toString()         : "";
 
-        if (TextUtils.isEmpty(email)) {
-            emailLayout.setError("Email is required");
-            return;
-        }
-        if (!email.matches(EMAIL_PATTERN)) {
-            emailLayout.setError("Enter a valid email address");
-            return;
-        }
-        if (TextUtils.isEmpty(pass)) {
-            passwordLayout.setError("Password is required");
-            return;
-        }
-        if (pass.length() < 6) {
-            passwordLayout.setError("Password must be at least 6 characters");
-            return;
-        }
+        if (TextUtils.isEmpty(email)) { emailLayout.setError("Email is required"); return; }
+        if (!email.matches(EMAIL_PATTERN)) { emailLayout.setError("Enter a valid email"); return; }
+        if (TextUtils.isEmpty(pass))  { passwordLayout.setError("Password is required"); return; }
+        if (pass.length() < 6)        { passwordLayout.setError("Min. 6 characters"); return; }
 
         setLoading(true);
+
         auth.signInWithEmailAndPassword(email, pass).addOnCompleteListener(task -> {
-            setLoading(false);
-            if (task.isSuccessful()) {
-                startActivity(new Intent(login.this, MainActivity.class));
-                finish();
+            if (task.isSuccessful() && auth.getCurrentUser() != null) {
+                // Mark Online in Firestore on login
+                db.collection("users")
+                        .document(auth.getCurrentUser().getUid())
+                        .set(Map.of("status", "Online"), SetOptions.merge())
+                        .addOnCompleteListener(t -> {
+                            setLoading(false);
+                            startActivity(new Intent(login.this, MainActivity.class));
+                            finish();
+                        });
             } else {
+                setLoading(false);
                 String msg = task.getException() != null
                         ? task.getException().getMessage() : "Login failed";
                 Toast.makeText(this, msg, Toast.LENGTH_LONG).show();
@@ -107,9 +97,8 @@ public class login extends AppCompatActivity {
 
     private void setLoading(boolean loading) {
         loginButton.setEnabled(!loading);
-        signupLink.setEnabled(!loading);
-        if (loadingOverlay != null) {
+        if (signupLink   != null) signupLink.setEnabled(!loading);
+        if (loadingOverlay != null)
             loadingOverlay.setVisibility(loading ? View.VISIBLE : View.GONE);
-        }
     }
 }

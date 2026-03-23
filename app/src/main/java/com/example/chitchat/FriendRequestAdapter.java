@@ -4,59 +4,94 @@ import android.content.Context;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
+import androidx.appcompat.app.AlertDialog;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.bumptech.glide.Glide;
 import com.google.android.material.button.MaterialButton;
-import com.google.firebase.auth.FirebaseAuth;
-import com.google.firebase.database.DatabaseReference;
-import com.google.firebase.database.FirebaseDatabase;
 
 import java.util.ArrayList;
 
 import de.hdodenhof.circleimageview.CircleImageView;
-import android.widget.TextView;
 
 /**
- * ENHANCED FriendRequestAdapter
+ * FriendRequestAdapter — UPGRADED
  *
- * IMPROVEMENTS:
- * - Accept/Decline buttons use MaterialButton (matches new layout)
- * - Button disabled during async operation to prevent double-taps
- * - Consistent null-check on myUid
- * - Avatar loads with circleCrop() for cleaner Glide handling
+ * Each card now shows:
+ *   - Profile photo
+ *   - Sender's name
+ *   - Mutual friend count ("3 mutual friends")
+ *   - Personal note from the sender (if any)
+ *   - [Accept] button
+ *   - [Decline] button
+ *   - [⋮ More] → long-press or icon → Block user option
+ *
+ * Pair this adapter with the upgraded item_connection_request.xml layout.
  */
-public class FriendRequestAdapter extends RecyclerView.Adapter<FriendRequestAdapter.RequestViewHolder> {
+public class FriendRequestAdapter
+        extends RecyclerView.Adapter<FriendRequestAdapter.RequestVH> {
 
-    private final Context context;
-    private final ArrayList<User> requestList;
-    private final DatabaseReference friendsRef;
-    private final DatabaseReference requestsRef;
-    private final String myUid;
+    public static class RequestItem {
+        public final User              user;
+        public final ConnectionRequest request;
 
-    public FriendRequestAdapter(Context context, ArrayList<User> requestList) {
-        this.context     = context;
-        this.requestList = requestList;
-        this.friendsRef  = FirebaseDatabase.getInstance().getReference("friends");
-        this.requestsRef = FirebaseDatabase.getInstance().getReference("friend_requests");
-        this.myUid       = FirebaseAuth.getInstance().getUid();
+        public RequestItem(User user, ConnectionRequest request) {
+            this.user    = user;
+            this.request = request;
+        }
+    }
+
+    private final Context             context;
+    private final ArrayList<RequestItem> list;
+    private final ConnectionManager   connectionManager;
+
+    public FriendRequestAdapter(Context context,
+                                ArrayList<RequestItem> list,
+                                ConnectionManager connectionManager) {
+        this.context           = context;
+        this.list              = list;
+        this.connectionManager = connectionManager;
     }
 
     @NonNull
     @Override
-    public RequestViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-        View view = LayoutInflater.from(context)
-                .inflate(R.layout.friend_request_item, parent, false);
-        return new RequestViewHolder(view);
+    public RequestVH onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+        View v = LayoutInflater.from(context)
+                .inflate(R.layout.item_connection_request, parent, false);
+        return new RequestVH(v);
     }
 
     @Override
-    public void onBindViewHolder(@NonNull RequestViewHolder holder, int position) {
-        User user = requestList.get(position);
+    public void onBindViewHolder(@NonNull RequestVH holder, int position) {
+        RequestItem item    = list.get(position);
+        User        user    = item.user;
+        ConnectionRequest r = item.request;
+
         holder.username.setText(user.getUsername());
+
+        // Mutual friend count
+        long mutual = r.getMutualCount();
+        if (mutual > 0) {
+            holder.mutualLabel.setText(mutual == 1
+                    ? "1 mutual friend"
+                    : mutual + " mutual friends");
+            holder.mutualLabel.setVisibility(View.VISIBLE);
+        } else {
+            holder.mutualLabel.setVisibility(View.GONE);
+        }
+
+        // Personal note — show only if present
+        String note = r.getMessage();
+        if (note != null && !note.isEmpty()) {
+            holder.noteText.setText("\"" + note + "\"");
+            holder.noteText.setVisibility(View.VISIBLE);
+        } else {
+            holder.noteText.setVisibility(View.GONE);
+        }
 
         Glide.with(context)
                 .load(user.getProfilepic())
@@ -64,63 +99,98 @@ public class FriendRequestAdapter extends RecyclerView.Adapter<FriendRequestAdap
                 .circleCrop()
                 .into(holder.profileImage);
 
-        // Re-enable buttons for recycled views
-        holder.acceptButton.setEnabled(true);
-        holder.declineButton.setEnabled(true);
+        // Reset button states
+        holder.acceptBtn.setEnabled(true);
+        holder.declineBtn.setEnabled(true);
 
-        holder.acceptButton.setOnClickListener(v -> {
-            holder.acceptButton.setEnabled(false);
-            holder.declineButton.setEnabled(false);
-            acceptRequest(user.getUid());
+        holder.acceptBtn.setOnClickListener(v -> {
+            holder.acceptBtn.setEnabled(false);
+            holder.declineBtn.setEnabled(false);
+            connectionManager.acceptRequest(user.getUid(),
+                    new ConnectionManager.Callback() {
+                        @Override
+                        public void onSuccess() {
+                            Toast.makeText(context, "Connected with "
+                                    + user.getUsername(), Toast.LENGTH_SHORT).show();
+                            // Firestore listener in the activity will remove the card
+                        }
+                        @Override
+                        public void onFailure(@NonNull Exception e) {
+                            holder.acceptBtn.setEnabled(true);
+                            holder.declineBtn.setEnabled(true);
+                            Toast.makeText(context, "Failed — try again",
+                                    Toast.LENGTH_SHORT).show();
+                        }
+                    });
         });
 
-        holder.declineButton.setOnClickListener(v -> {
-            holder.acceptButton.setEnabled(false);
-            holder.declineButton.setEnabled(false);
-            declineRequest(user.getUid());
+        holder.declineBtn.setOnClickListener(v -> {
+            holder.acceptBtn.setEnabled(false);
+            holder.declineBtn.setEnabled(false);
+            connectionManager.declineRequest(user.getUid(),
+                    new ConnectionManager.Callback() {
+                        @Override
+                        public void onSuccess() {}
+                        @Override
+                        public void onFailure(@NonNull Exception e) {
+                            holder.acceptBtn.setEnabled(true);
+                            holder.declineBtn.setEnabled(true);
+                        }
+                    });
         });
+
+        // Block option via long-press on the card
+        holder.itemView.setOnLongClickListener(v -> {
+            showBlockDialog(user);
+            return true;
+        });
+
+
     }
 
-    private void acceptRequest(String senderId) {
-        if (myUid == null) return;
-        // Add to both users' friends nodes
-        friendsRef.child(myUid).child(senderId).setValue(true);
-        friendsRef.child(senderId).child(myUid).setValue(true);
-        // Remove the request — the ValueEventListener in the Activity refreshes the list
-        requestsRef.child(myUid).child(senderId).removeValue()
-                .addOnCompleteListener(task -> {
-                    if (task.isSuccessful()) {
-                        Toast.makeText(context, "Friend request accepted", Toast.LENGTH_SHORT).show();
+    private void showBlockDialog(User user) {
+        new AlertDialog.Builder(context)
+                .setTitle(user.getUsername())
+                .setItems(new String[]{"Block " + user.getUsername(), "Cancel"},
+                        (dialog, which) -> {
+                            if (which == 0) blockUser(user);
+                        })
+                .show();
+    }
+
+    private void blockUser(User user) {
+        connectionManager.blockUser(user.getUid(),
+                new ConnectionManager.Callback() {
+                    @Override
+                    public void onSuccess() {
+                        Toast.makeText(context,
+                                user.getUsername() + " blocked",
+                                Toast.LENGTH_SHORT).show();
                     }
-                });
-    }
-
-    private void declineRequest(String senderId) {
-        if (myUid == null) return;
-        requestsRef.child(myUid).child(senderId).removeValue()
-                .addOnCompleteListener(task -> {
-                    if (task.isSuccessful()) {
-                        Toast.makeText(context, "Request declined", Toast.LENGTH_SHORT).show();
+                    @Override
+                    public void onFailure(@NonNull Exception e) {
+                        Toast.makeText(context, "Could not block user",
+                                Toast.LENGTH_SHORT).show();
                     }
                 });
     }
 
     @Override
-    public int getItemCount() {
-        return requestList.size();
-    }
+    public int getItemCount() { return list.size(); }
 
-    static class RequestViewHolder extends RecyclerView.ViewHolder {
+    static class RequestVH extends RecyclerView.ViewHolder {
         CircleImageView profileImage;
-        TextView username;
-        MaterialButton acceptButton, declineButton;
+        TextView        username, mutualLabel, noteText;
+        MaterialButton  acceptBtn, declineBtn;
 
-        RequestViewHolder(@NonNull View itemView) {
-            super(itemView);
-            profileImage  = itemView.findViewById(R.id.profile_image);
-            username      = itemView.findViewById(R.id.username_text);
-            acceptButton  = itemView.findViewById(R.id.accept_button);
-            declineButton = itemView.findViewById(R.id.decline_button);
+        RequestVH(@NonNull View v) {
+            super(v);
+            profileImage = v.findViewById(R.id.profile_image);
+            username     = v.findViewById(R.id.username_text);
+            mutualLabel  = v.findViewById(R.id.mutual_label);
+            noteText     = v.findViewById(R.id.note_text);
+            acceptBtn    = v.findViewById(R.id.accept_button);
+            declineBtn   = v.findViewById(R.id.decline_button);
         }
     }
 }

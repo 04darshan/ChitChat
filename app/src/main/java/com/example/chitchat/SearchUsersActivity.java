@@ -1,81 +1,70 @@
 package com.example.chitchat;
 
 import android.os.Bundle;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.view.View;
+import android.view.inputmethod.EditorInfo;
 import android.widget.LinearLayout;
 
-import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.appcompat.widget.SearchView;
 import androidx.appcompat.widget.Toolbar;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.google.android.material.textfield.TextInputEditText;
 import com.google.firebase.auth.FirebaseAuth;
-import com.google.firebase.database.DataSnapshot;
-import com.google.firebase.database.DatabaseError;
-import com.google.firebase.database.DatabaseReference;
-import com.google.firebase.database.FirebaseDatabase;
-import com.google.firebase.database.Query;
-import com.google.firebase.database.ValueEventListener;
+import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.ListenerRegistration;
+import com.google.firebase.firestore.QueryDocumentSnapshot;
 
 import java.util.ArrayList;
 
 /**
- * ENHANCED SearchUsersActivity
+ * SearchUsersActivity — Firestore version
  *
- * BUGS FIXED:
- * 1. DUPLICATE RESULTS / LISTENER LEAK: Every keystroke called searchUsers() which added a NEW
- *    addValueEventListener to the query. The old listener was never removed, causing:
- *    - Duplicate results appearing in the list
- *    - Memory leaks as listeners accumulated
- *    FIX: Store the active query and its listener, remove the old listener before creating a new
- *    one on each keystroke. Use addListenerForSingleValueEvent for keyword searches.
+ * Firestore query:  users  where username >= query && username <= query+\uf8ff
+ * (same prefix-match trick, but Firestore handles it cleanly with no
+ *  listener-stacking bug — we just cancel the previous Task before starting a new one)
  *
- * 2. EMPTY STATE: No visual feedback when search returns 0 results.
- *    FIX: Show a hint/empty-state layout.
- *
- * ENHANCEMENT: Back navigation via toolbar.
+ * Friends + sent-requests lists are kept in sync via real-time Firestore listeners
+ * stored as ListenerRegistration so they can be properly removed in onDestroy().
  */
 public class SearchUsersActivity extends AppCompatActivity {
 
-    private RecyclerView recyclerView;
-    private SearchUserAdapter adapter;
-    private ArrayList<User> userList;
-    private DatabaseReference usersRef;
-    private FirebaseAuth auth;
-    private ArrayList<String> friendUids;
-    private ArrayList<String> sentRequestUids;
-    private LinearLayout searchHintLayout;
+    private RecyclerView        recyclerView;
+    private SearchUserAdapter   adapter;
+    private ArrayList<User>     userList;
+    private ArrayList<String>   friendUids;
+    private ArrayList<String>   sentRequestUids;
+    private LinearLayout        searchHintLayout;
 
-    // BUG FIX: Track the current active query + listener so we can remove it
-    private Query activeQuery;
-    private ValueEventListener activeSearchListener;
+    private FirebaseFirestore   db;
+    private FirebaseAuth        auth;
+
+    private ListenerRegistration friendsListener;
+    private ListenerRegistration requestsListener;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_search_users);
 
-        // Toolbar back button
         Toolbar toolbar = findViewById(R.id.toolbar);
         if (toolbar != null) {
             setSupportActionBar(toolbar);
-            if (getSupportActionBar() != null) {
+            if (getSupportActionBar() != null)
                 getSupportActionBar().setDisplayHomeAsUpEnabled(true);
-            }
         }
 
-        SearchView searchView = findViewById(R.id.search_view);
-        recyclerView          = findViewById(R.id.search_recycler_view);
-        searchHintLayout      = findViewById(R.id.search_hint_layout);
+        db              = FirebaseFirestore.getInstance();
+        auth            = FirebaseAuth.getInstance();
+        userList        = new ArrayList<>();
+        friendUids      = new ArrayList<>();
+        sentRequestUids = new ArrayList<>();
 
-        usersRef = FirebaseDatabase.getInstance().getReference("user");
-        auth     = FirebaseAuth.getInstance();
-
-        userList         = new ArrayList<>();
-        friendUids       = new ArrayList<>();
-        sentRequestUids  = new ArrayList<>();
+        recyclerView     = findViewById(R.id.search_recycler_view);
+        searchHintLayout = findViewById(R.id.search_hint_layout);
 
         adapter = new SearchUserAdapter(this, userList, friendUids, sentRequestUids);
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
@@ -83,81 +72,70 @@ public class SearchUsersActivity extends AppCompatActivity {
 
         fetchCurrentUserData();
 
-        if (searchView != null) {
-            searchView.setIconifiedByDefault(false);
-            searchView.setOnQueryTextListener(new SearchView.OnQueryTextListener() {
+        TextInputEditText searchInput = findViewById(R.id.search_view);
+        if (searchInput != null) {
+            searchInput.addTextChangedListener(new TextWatcher() {
+                @Override public void beforeTextChanged(CharSequence s, int i, int i1, int i2) {}
+                @Override public void afterTextChanged(Editable s) {}
                 @Override
-                public boolean onQueryTextSubmit(String query) {
-                    searchUsers(query.trim());
-                    return false;
+                public void onTextChanged(CharSequence s, int start, int before, int count) {
+                    searchUsers(s.toString().trim());
                 }
-
-                @Override
-                public boolean onQueryTextChange(String newText) {
-                    searchUsers(newText.trim());
-                    return false;
+            });
+            searchInput.setOnEditorActionListener((v, actionId, event) -> {
+                if (actionId == EditorInfo.IME_ACTION_SEARCH) {
+                    String q = searchInput.getText() != null
+                            ? searchInput.getText().toString().trim() : "";
+                    searchUsers(q);
+                    return true;
                 }
+                return false;
             });
         }
     }
 
     @Override
-    public boolean onSupportNavigateUp() {
-        onBackPressed();
-        return true;
-    }
+    public boolean onSupportNavigateUp() { onBackPressed(); return true; }
 
-    // -----------------------------------------------------------------------
-    // Fetch current user's friends + sent requests (real-time listeners OK here
-    // because they're on small node paths, not on a search query that changes)
-    // -----------------------------------------------------------------------
+    // ───────────────────────────────────────────────────────────────
+    // Real-time listeners for friends + sent requests
+    // ───────────────────────────────────────────────────────────────
     private void fetchCurrentUserData() {
         String myUid = auth.getUid();
         if (myUid == null) return;
 
-        FirebaseDatabase.getInstance().getReference("friends").child(myUid)
-                .addValueEventListener(new ValueEventListener() {
-                    @Override
-                    public void onDataChange(@NonNull DataSnapshot snapshot) {
-                        friendUids.clear();
-                        for (DataSnapshot ds : snapshot.getChildren()) {
-                            friendUids.add(ds.getKey());
-                        }
-                        adapter.notifyDataSetChanged();
+        // Friends subcollection
+        friendsListener = db.collection("friends")
+                .document(myUid)
+                .collection("friendsList")
+                .addSnapshotListener((snapshots, e) -> {
+                    if (snapshots == null) return;
+                    friendUids.clear();
+                    for (QueryDocumentSnapshot doc : snapshots) {
+                        friendUids.add(doc.getId());
                     }
-                    @Override
-                    public void onCancelled(@NonNull DatabaseError error) {}
+                    adapter.notifyDataSetChanged();
                 });
 
-        FirebaseDatabase.getInstance().getReference("friend_requests")
-                .addValueEventListener(new ValueEventListener() {
-                    @Override
-                    public void onDataChange(@NonNull DataSnapshot snapshot) {
-                        sentRequestUids.clear();
-                        for (DataSnapshot recipientSnap : snapshot.getChildren()) {
-                            if (recipientSnap.hasChild(myUid)) {
-                                sentRequestUids.add(recipientSnap.getKey());
-                            }
-                        }
-                        adapter.notifyDataSetChanged();
+        // Sent requests: where WE are the sender
+        requestsListener = db.collectionGroup("requests")
+                .whereEqualTo("senderUid", myUid)
+                .addSnapshotListener((snapshots, e) -> {
+                    if (snapshots == null) return;
+                    sentRequestUids.clear();
+                    for (QueryDocumentSnapshot doc : snapshots) {
+                        // doc.getId() is the sender (us); parent doc ID is recipient
+                        sentRequestUids.add(doc.getReference()
+                                .getParent().getParent().getId());
                     }
-                    @Override
-                    public void onCancelled(@NonNull DatabaseError error) {}
+                    adapter.notifyDataSetChanged();
                 });
     }
 
-    // -----------------------------------------------------------------------
-    // BUG FIX: Remove the previous listener before attaching a new one.
-    // Use addListenerForSingleValueEvent so the listener auto-removes after firing.
-    // -----------------------------------------------------------------------
+    // ───────────────────────────────────────────────────────────────
+    // Firestore prefix search on username field
+    // ───────────────────────────────────────────────────────────────
     private void searchUsers(String queryText) {
-        // Remove any previously active listener to prevent duplicate results
-        if (activeQuery != null && activeSearchListener != null) {
-            activeQuery.removeEventListener(activeSearchListener);
-            activeQuery = null;
-            activeSearchListener = null;
-        }
-
         if (queryText.isEmpty()) {
             userList.clear();
             adapter.notifyDataSetChanged();
@@ -167,40 +145,35 @@ public class SearchUsersActivity extends AppCompatActivity {
 
         showHint(false);
 
-        activeQuery = usersRef.orderByChild("username")
+        String myUid = auth.getUid();
+
+        db.collection("users")
+                .orderBy("username")
                 .startAt(queryText)
-                .endAt(queryText + "\uf8ff");
-
-        // BUG FIX: Use SingleValueEvent — only fires once, no stacking listeners
-        activeSearchListener = new ValueEventListener() {
-            @Override
-            public void onDataChange(@NonNull DataSnapshot snapshot) {
-                userList.clear();
-                String myUid = auth.getUid();
-                for (DataSnapshot ds : snapshot.getChildren()) {
-                    User user = ds.getValue(User.class);
-                    if (user != null && !user.getUid().equals(myUid)) {
-                        userList.add(user);
+                .endAt(queryText + "\uf8ff")
+                .get()
+                .addOnSuccessListener(snapshots -> {
+                    userList.clear();
+                    for (QueryDocumentSnapshot doc : snapshots) {
+                        User user = doc.toObject(User.class);
+                        if (!user.getUid().equals(myUid)) {
+                            userList.add(user);
+                        }
                     }
-                }
-                adapter.notifyDataSetChanged();
-
-                if (userList.isEmpty()) {
-                    showHint(true);
-                }
-            }
-            @Override
-            public void onCancelled(@NonNull DatabaseError error) {}
-        };
-
-        // Using addListenerForSingleValueEvent means the listener fires once and is gone,
-        // eliminating the accumulation bug while still keeping activeQuery reference correct.
-        activeQuery.addListenerForSingleValueEvent(activeSearchListener);
+                    adapter.notifyDataSetChanged();
+                    showHint(userList.isEmpty());
+                });
     }
 
     private void showHint(boolean show) {
-        if (searchHintLayout != null) {
+        if (searchHintLayout != null)
             searchHintLayout.setVisibility(show ? View.VISIBLE : View.GONE);
-        }
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (friendsListener  != null) friendsListener.remove();
+        if (requestsListener != null) requestsListener.remove();
     }
 }
