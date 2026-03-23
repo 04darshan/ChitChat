@@ -1,70 +1,78 @@
 <?xml version="1.0" encoding="utf-8"?>
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<!-- REDESIGNED: Material You Main/Friends List Screen -->
+<androidx.coordinatorlayout.widget.CoordinatorLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
-    android:id="@+id/main"
-    android:background="@drawable/backmain"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="?attr/colorSurface"
     tools:context=".MainActivity">
 
-    <LinearLayout
-        android:id="@+id/llbox"
+    <!-- Top App Bar -->
+    <com.google.android.material.appbar.AppBarLayout
+        android:id="@+id/appBarLayout"
         android:layout_width="match_parent"
-        android:layout_height="?attr/actionBarSize"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:paddingStart="16dp"
-        android:paddingEnd="16dp"
-        android:background="#B0D9C8">
+        android:layout_height="wrap_content"
+        app:liftOnScroll="true">
 
-        <TextView
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:fontFamily="@font/dancing"
-            android:text="ChitChat"
-            android:textColor="@color/black"
-            android:textSize="29sp"
-            android:textStyle="bold" />
+        <com.google.android.material.appbar.MaterialToolbar
+            android:id="@+id/llbox"
+            android:layout_width="match_parent"
+            android:layout_height="?attr/actionBarSize"
+            app:title="ChitChat"
+            app:titleTextAppearance="@style/TextAppearance.Material3.HeadlineSmall"
+            app:navigationIcon="@null">
 
-        <ImageButton
-            android:id="@+id/friend_requests_button"
-            android:layout_width="38dp"
-            android:layout_height="38dp"
-            android:layout_marginRight="@dimen/_15sdp"
-            android:src="@drawable/ic_notifications"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            app:tint="@color/black"
-            android:layout_marginEnd="8dp"/>
+            <!-- Notification/Friend Requests Button -->
+            <ImageButton
+                android:id="@+id/friend_requests_button"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_gravity="end"
+                android:layout_marginEnd="4dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Friend Requests"
+                android:src="@drawable/ic_notifications"
+                app:tint="?attr/colorOnSurface" />
 
-        <ImageButton
-            android:id="@+id/find_friends_button"
-            android:layout_width="38dp"
-            android:layout_height="38dp"
-            android:src="@drawable/people"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:scaleType="fitCenter"
-            android:layout_marginEnd="8dp"/>
+            <!-- Find Friends Button -->
+            <ImageButton
+                android:id="@+id/find_friends_button"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_gravity="end"
+                android:maxWidth="@dimen/_30sdp"
+                android:maxHeight="@dimen/_30sdp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Find Friends"
+                android:src="@drawable/people"
+                app:tint="?attr/colorOnSurface" />
 
-        <ImageView
-            android:id="@+id/logbtn"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:src="@drawable/logout"
-            />
+            <!-- Logout Button -->
+            <ImageButton
+                android:id="@+id/logbtn"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_gravity="end"
+                android:layout_marginEnd="8dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Logout"
+                android:src="@drawable/logout"
+                app:tint="?attr/colorOnSurface" />
 
-    </LinearLayout>
+        </com.google.android.material.appbar.MaterialToolbar>
 
-    <!-- UPDATED: Added SwipeRefreshLayout to wrap the list -->
+    </com.google.android.material.appbar.AppBarLayout>
+
+    <!-- Main Content -->
     <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
         android:id="@+id/swipe_refresh_layout"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_below="@id/llbox">
+        app:layout_behavior="@string/appbar_scrolling_view_behavior">
 
-        <!-- The RelativeLayout is needed so the "no friends" text can be centered -->
-        <RelativeLayout
+        <FrameLayout
             android:layout_width="match_parent"
             android:layout_height="match_parent">
 
@@ -72,18 +80,52 @@
                 android:id="@+id/rcvmain"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:padding="8dp"/>
+                android:clipToPadding="false"
+                android:paddingTop="8dp"
+                android:paddingBottom="80dp" />
 
-            <TextView
+            <!-- Empty State -->
+            <LinearLayout
                 android:id="@+id/no_friends_text"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="You have no friends yet. Find some!"
-                android:layout_centerInParent="true"
-                android:visibility="gone"/>
+                android:layout_gravity="center"
+                android:gravity="center"
+                android:orientation="vertical"
+                android:visibility="gone"
+                tools:visibility="visible">
 
-        </RelativeLayout>
+                <ImageView
+                    android:layout_width="96dp"
+                    android:layout_height="96dp"
+                    android:src="@drawable/people"
+                    app:tint="?attr/colorOnSurfaceVariant"
+                    android:alpha="0.4"
+                    android:contentDescription="No friends" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    android:fontFamily="@font/poppins_bold"
+                    android:text="No friends yet"
+                    android:textColor="?attr/colorOnSurface"
+                    android:textSize="20sp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:fontFamily="@font/poppins_regular"
+                    android:gravity="center"
+                    android:text="Tap the people icon above\nto find and add friends"
+                    android:textColor="?attr/colorOnSurfaceVariant"
+                    android:textSize="14sp" />
+
+            </LinearLayout>
+
+        </FrameLayout>
 
     </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 
-</RelativeLayout>
+</androidx.coordinatorlayout.widget.CoordinatorLayout>

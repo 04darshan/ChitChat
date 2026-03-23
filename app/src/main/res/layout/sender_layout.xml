@@ -1,35 +1,86 @@
 <?xml version="1.0" encoding="utf-8"?>
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<!-- REDESIGNED: Material You Sender Message Bubble -->
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    xmlns:app="http://schemas.android.com/apk/res-auto">
+    android:orientation="horizontal"
+    android:gravity="end"
+    android:paddingHorizontal="12dp"
+    android:paddingVertical="3dp">
 
+    <!-- Message bubble + timestamp column -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:layout_marginEnd="8dp"
+        android:gravity="end"
+        android:orientation="vertical">
+
+        <com.google.android.material.card.MaterialCardView
+            app:cardCornerRadius="20dp"
+            app:cardCornerRadiusBottomEnd="4dp"
+            app:cardElevation="0dp"
+            app:cardBackgroundColor="?attr/colorPrimaryContainer"
+            app:strokeWidth="0dp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content">
+
+            <TextView
+                android:id="@+id/msgsendertyp"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="@font/poppins_regular"
+                android:maxWidth="240dp"
+                android:padding="10dp"
+                android:paddingStart="14dp"
+                android:paddingEnd="14dp"
+                android:text="Message text"
+                android:textColor="?attr/colorOnPrimaryContainer"
+                android:textSize="14sp" />
+
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Timestamp + seen indicator -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:layout_marginTop="2dp"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/msgTimestamp"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="@font/poppins_regular"
+                android:text="12:34"
+                android:textColor="?attr/colorOnSurfaceVariant"
+                android:textSize="10sp" />
+
+            <ImageView
+                android:id="@+id/seenIndicator"
+                android:layout_width="14dp"
+                android:layout_height="14dp"
+                android:layout_marginStart="3dp"
+                android:src="@drawable/ic_done_all"
+                app:tint="?attr/colorPrimary"
+                android:visibility="gone" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+    <!-- Sender avatar -->
     <de.hdodenhof.circleimageview.CircleImageView
         android:id="@+id/profilerggg"
-        android:layout_width="@dimen/_25sdp"
-        android:layout_height="@dimen/_25sdp"
+        android:layout_width="30dp"
+        android:layout_height="30dp"
+        android:layout_gravity="bottom"
         android:src="@drawable/photocamera"
-        android:layout_centerVertical="true"
-        android:layout_alignParentRight="true"
-        android:layout_margin="@dimen/_10sdp"
-        />
+        app:civ_border_color="?attr/colorPrimary"
+        app:civ_border_width="1.5dp" />
 
-    <TextView
-        android:id="@+id/msgsendertyp"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_centerVertical="true"
-        android:layout_marginStart="@dimen/_5sdp"
-        android:layout_marginTop="@dimen/_5sdp"
-        android:layout_marginEnd="@dimen/_1sdp"
-        android:layout_marginBottom="@dimen/_5sdp"
-        android:layout_toLeftOf="@id/profilerggg"
-        android:background="@drawable/sender_shape"
-        android:fontFamily="@font/poppins_regular"
-        android:padding="@dimen/_7sdp"
-        android:text="aysuhvish"
-        android:textColor="@color/black"
-        android:textStyle="bold" />
-
-
-</RelativeLayout>
+</LinearLayout>

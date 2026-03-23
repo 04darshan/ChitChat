@@ -1,5 +1,113 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+╔══════════════════════════════════════════════════════════════════╗
+║  res/values/colors.xml  (SINGLE FILE — Light + Dark tokens)     ║
+║                                                                  ║
+║  HOW IT WORKS:                                                   ║
+║  Light tokens  →  md_theme_*          (used by themes.xml)      ║
+║  Dark tokens   →  md_theme_dark_*     (used by values-night/    ║
+║                                        themes.xml)              ║
+║                                                                  ║
+║  In  res/values/themes.xml  →  @color/md_theme_primary          ║
+║  In  res/values-night/themes.xml  →  @color/md_theme_dark_primary║
+║                                                                  ║
+║  No values-night/colors.xml needed. One file does it all.       ║
+╚══════════════════════════════════════════════════════════════════╝
+-->
 <resources>
+
+    <!-- ════════════════════════════════════════════════════
+         LIGHT MODE TOKENS   (prefix: md_theme_)
+         Seed color: Teal-Green #1A6B45
+         ════════════════════════════════════════════════════ -->
+
+    <!-- Primary -->
+    <color name="md_theme_primary">#1A6B45</color>
+    <color name="md_theme_onPrimary">#FFFFFF</color>
+    <color name="md_theme_primaryContainer">#A7F2C4</color>
+    <color name="md_theme_onPrimaryContainer">#00210F</color>
+
+    <!-- Secondary -->
+    <color name="md_theme_secondary">#4E6355</color>
+    <color name="md_theme_onSecondary">#FFFFFF</color>
+    <color name="md_theme_secondaryContainer">#D1E8D7</color>
+    <color name="md_theme_onSecondaryContainer">#0B1F15</color>
+
+    <!-- Tertiary -->
+    <color name="md_theme_tertiary">#3A6472</color>
+    <color name="md_theme_onTertiary">#FFFFFF</color>
+    <color name="md_theme_tertiaryContainer">#BEEAF9</color>
+    <color name="md_theme_onTertiaryContainer">#001F28</color>
+
+    <!-- Error -->
+    <color name="md_theme_error">#BA1A1A</color>
+    <color name="md_theme_onError">#FFFFFF</color>
+    <color name="md_theme_errorContainer">#FFDAD6</color>
+    <color name="md_theme_onErrorContainer">#410002</color>
+
+    <!-- Surface -->
+    <color name="md_theme_surface">#F6FBF4</color>
+    <color name="md_theme_onSurface">#171D1A</color>
+    <color name="md_theme_surfaceVariant">#DCE5DC</color>
+    <color name="md_theme_onSurfaceVariant">#404942</color>
+    <color name="md_theme_surfaceContainer">#E8F2EA</color>
+    <color name="md_theme_surfaceContainerLow">#EFF5F0</color>
+    <color name="md_theme_surfaceContainerHigh">#E2EDE4</color>
+
+    <!-- Outline -->
+    <color name="md_theme_outline">#707972</color>
+    <color name="md_theme_outlineVariant">#C0C9C1</color>
+
+
+    <!-- ════════════════════════════════════════════════════
+         DARK MODE TOKENS   (prefix: md_theme_dark_)
+         Seed color: same green, dark tonal surface
+         ════════════════════════════════════════════════════ -->
+
+    <!-- Primary -->
+    <color name="md_theme_dark_primary">#8CD5A9</color>
+    <color name="md_theme_dark_onPrimary">#003821</color>
+    <color name="md_theme_dark_primaryContainer">#005231</color>
+    <color name="md_theme_dark_onPrimaryContainer">#A7F2C4</color>
+
+    <!-- Secondary -->
+    <color name="md_theme_dark_secondary">#B5CCBB</color>
+    <color name="md_theme_dark_onSecondary">#213529</color>
+    <color name="md_theme_dark_secondaryContainer">#374B3F</color>
+    <color name="md_theme_dark_onSecondaryContainer">#D1E8D7</color>
+
+    <!-- Tertiary -->
+    <color name="md_theme_dark_tertiary">#A2CDD9</color>
+    <color name="md_theme_dark_onTertiary">#013543</color>
+    <color name="md_theme_dark_tertiaryContainer">#1E4C5A</color>
+    <color name="md_theme_dark_onTertiaryContainer">#BEEAF9</color>
+
+    <!-- Error -->
+    <color name="md_theme_dark_error">#FFB4AB</color>
+    <color name="md_theme_dark_onError">#690005</color>
+    <color name="md_theme_dark_errorContainer">#93000A</color>
+    <color name="md_theme_dark_onErrorContainer">#FFDAD6</color>
+
+    <!-- Surface -->
+    <color name="md_theme_dark_surface">#0F1510</color>
+    <color name="md_theme_dark_onSurface">#DEE4DF</color>
+    <color name="md_theme_dark_surfaceVariant">#404942</color>
+    <color name="md_theme_dark_onSurfaceVariant">#C0C9C1</color>
+    <color name="md_theme_dark_surfaceContainer">#1B211C</color>
+    <color name="md_theme_dark_surfaceContainerLow">#171D18</color>
+    <color name="md_theme_dark_surfaceContainerHigh">#252B26</color>
+
+    <!-- Outline -->
+    <color name="md_theme_dark_outline">#8A9389</color>
+    <color name="md_theme_dark_outlineVariant">#404942</color>
+
+
+    <!-- ════════════════════════════════════════════════════
+         UTILITY / LEGACY
+         Keep these so any layout referencing @color/black
+         or @color/white doesn't break.
+         ════════════════════════════════════════════════════ -->
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+
 </resources>

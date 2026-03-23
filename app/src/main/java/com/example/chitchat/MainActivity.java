@@ -4,10 +4,7 @@ import android.app.Dialog;
 import android.content.Intent;
 import android.os.Bundle;
 import android.view.View;
-import android.widget.Button;
-import android.widget.ImageButton;
-import android.widget.ImageView;
-import android.widget.TextView;
+import android.view.Window;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
@@ -15,6 +12,7 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
+import com.google.android.material.button.MaterialButton;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseError;
@@ -25,139 +23,149 @@ import com.google.firebase.database.ValueEventListener;
 import java.util.ArrayList;
 import java.util.Collections;
 
+/**
+ * ENHANCED MainActivity.java
+ *
+ * IMPROVEMENTS:
+ * - Empty state is now a LinearLayout (icon + text) matching the new XML
+ * - Logout dialog uses the new Material3 dialog layout
+ * - Presence system unchanged (was already correct)
+ * - Null-check on auth.getUid() throughout
+ * - Dialog uses transparent background so rounded corners show correctly
+ */
 public class MainActivity extends AppCompatActivity {
-    ImageView logoutMain;
-    ImageButton findFriendsButton, friendRequestsButton;
-    TextView noFriendsText;
+
+    // Made package-accessible for Useradapter (reads auth.getUid())
     FirebaseAuth auth;
-    RecyclerView recyclerView;
-    Useradapter useradapter;
-    FirebaseDatabase firebaseDatabase;
-    DatabaseReference usersRef, friendsRef;
-    ArrayList<User> userArrayList;
-    private Dialog logoutDialog;
+
+    private android.widget.ImageButton findFriendsButton, friendRequestsButton;
+    private android.view.View logoutBtn;
+    private View noFriendsLayout;
+    private RecyclerView recyclerView;
+    private Useradapter useradapter;
+    private FirebaseDatabase firebaseDatabase;
+    private DatabaseReference usersRef, friendsRef;
+    private ArrayList<User> userList;
     private SwipeRefreshLayout swipeRefreshLayout;
+    private Dialog logoutDialog;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
 
         auth = FirebaseAuth.getInstance();
+
+        // Guard: not logged in → go to login
         if (auth.getCurrentUser() == null) {
-            startActivity(new Intent(MainActivity.this, login.class));
+            startActivity(new Intent(this, login.class));
             finish();
             return;
         }
 
+        setContentView(R.layout.activity_main);
+
         firebaseDatabase = FirebaseDatabase.getInstance();
-        usersRef = firebaseDatabase.getReference().child("user");
-        friendsRef = firebaseDatabase.getReference().child("friends").child(auth.getUid());
+        String uid = auth.getCurrentUser().getUid();
+        usersRef  = firebaseDatabase.getReference("user");
+        friendsRef = firebaseDatabase.getReference("friends").child(uid);
 
-        logoutMain = findViewById(R.id.logbtn);
-        findFriendsButton = findViewById(R.id.find_friends_button);
+        // View bindings — using the new Material Toolbar layout
+        logoutBtn            = findViewById(R.id.logbtn);
+        findFriendsButton    = findViewById(R.id.find_friends_button);
         friendRequestsButton = findViewById(R.id.friend_requests_button);
-        noFriendsText = findViewById(R.id.no_friends_text);
-        recyclerView = findViewById(R.id.rcvmain);
-        swipeRefreshLayout = findViewById(R.id.swipe_refresh_layout);
+        noFriendsLayout      = findViewById(R.id.no_friends_text); // now a LinearLayout
+        recyclerView         = findViewById(R.id.rcvmain);
+        swipeRefreshLayout   = findViewById(R.id.swipe_refresh_layout);
 
-        userArrayList = new ArrayList<>();
-        useradapter = new Useradapter(MainActivity.this, userArrayList);
+        userList    = new ArrayList<>();
+        useradapter = new Useradapter(this, userList);
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
         recyclerView.setAdapter(useradapter);
 
-        // This listener will now update the UI in real-time
         setupFriendsListener();
 
         swipeRefreshLayout.setOnRefreshListener(this::fetchFriendsManual);
 
-        logoutMain.setOnClickListener(v -> showLogoutDialog());
-        findFriendsButton.setOnClickListener(v -> startActivity(new Intent(MainActivity.this, SearchUsersActivity.class)));
-        friendRequestsButton.setOnClickListener(v -> startActivity(new Intent(MainActivity.this, FriendRequestsActivity.class)));
+        logoutBtn.setOnClickListener(v -> showLogoutDialog());
+        findFriendsButton.setOnClickListener(v ->
+                startActivity(new Intent(this, SearchUsersActivity.class)));
+        friendRequestsButton.setOnClickListener(v ->
+                startActivity(new Intent(this, FriendRequestsActivity.class)));
 
         setupPresenceSystem();
     }
 
-    // UPDATED: This is now the primary way friends are loaded and kept in sync.
+    // -----------------------------------------------------------------------
+    // Real-time listener: reloads friend list whenever the friends node changes
+    // -----------------------------------------------------------------------
     private void setupFriendsListener() {
         friendsRef.addValueEventListener(new ValueEventListener() {
             @Override
             public void onDataChange(@NonNull DataSnapshot snapshot) {
-                // When the friends list changes, get the new list of UIDs
                 ArrayList<String> friendUids = new ArrayList<>();
-                for (DataSnapshot friendSnapshot : snapshot.getChildren()) {
-                    friendUids.add(friendSnapshot.getKey());
+                for (DataSnapshot ds : snapshot.getChildren()) {
+                    friendUids.add(ds.getKey());
                 }
-                // Fetch the details for the new list
-                fetchFriendDetails(friendUids, false); // false because this is not a manual refresh
+                fetchFriendDetails(friendUids, false);
             }
-
             @Override
             public void onCancelled(@NonNull DatabaseError error) {
-                updateNoFriendsView();
+                updateEmptyState();
             }
         });
     }
 
-    // This method is now only for the manual swipe-to-refresh gesture
+    // Called by swipe-to-refresh only
     private void fetchFriendsManual() {
         friendsRef.addListenerForSingleValueEvent(new ValueEventListener() {
             @Override
             public void onDataChange(@NonNull DataSnapshot snapshot) {
                 ArrayList<String> friendUids = new ArrayList<>();
-                for (DataSnapshot friendSnapshot : snapshot.getChildren()) {
-                    friendUids.add(friendSnapshot.getKey());
+                for (DataSnapshot ds : snapshot.getChildren()) {
+                    friendUids.add(ds.getKey());
                 }
-                fetchFriendDetails(friendUids, true); // true because it's a manual refresh
+                fetchFriendDetails(friendUids, true);
             }
-
             @Override
             public void onCancelled(@NonNull DatabaseError error) {
                 swipeRefreshLayout.setRefreshing(false);
-                updateNoFriendsView();
+                updateEmptyState();
             }
         });
     }
 
     private void fetchFriendDetails(ArrayList<String> friendUids, boolean isManualRefresh) {
-        if (isManualRefresh) {
-            swipeRefreshLayout.setRefreshing(true);
-        }
-        userArrayList.clear();
+        if (isManualRefresh) swipeRefreshLayout.setRefreshing(true);
+        userList.clear();
 
         if (friendUids.isEmpty()) {
             useradapter.notifyDataSetChanged();
-            updateNoFriendsView();
+            updateEmptyState();
             if (isManualRefresh) swipeRefreshLayout.setRefreshing(false);
             return;
         }
 
-        final int[] fetchCounter = {0};
-
+        final int[] counter = {0};
         for (String uid : friendUids) {
             usersRef.child(uid).addListenerForSingleValueEvent(new ValueEventListener() {
                 @Override
-                public void onDataChange(@NonNull DataSnapshot userSnapshot) {
-                    User friend = userSnapshot.getValue(User.class);
-                    if (friend != null) {
-                        userArrayList.add(friend);
-                    }
-
-                    fetchCounter[0]++;
-                    if (fetchCounter[0] == friendUids.size()) {
-                        Collections.sort(userArrayList, (u1, u2) -> u1.getUsername().compareToIgnoreCase(u2.getUsername()));
-                        useradapter.notifyDataSetChanged();
-                        updateNoFriendsView();
-                        if (isManualRefresh) swipeRefreshLayout.setRefreshing(false);
-                    }
+                public void onDataChange(@NonNull DataSnapshot snapshot) {
+                    User friend = snapshot.getValue(User.class);
+                    if (friend != null) userList.add(friend);
+                    finishIfDone();
                 }
-
                 @Override
                 public void onCancelled(@NonNull DatabaseError error) {
-                    fetchCounter[0]++;
-                    if (fetchCounter[0] == friendUids.size()) {
+                    finishIfDone();
+                }
+
+                private void finishIfDone() {
+                    counter[0]++;
+                    if (counter[0] == friendUids.size()) {
+                        Collections.sort(userList,
+                                (a, b) -> a.getUsername().compareToIgnoreCase(b.getUsername()));
                         useradapter.notifyDataSetChanged();
-                        updateNoFriendsView();
+                        updateEmptyState();
                         if (isManualRefresh) swipeRefreshLayout.setRefreshing(false);
                     }
                 }
@@ -165,47 +173,64 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    private void updateNoFriendsView() {
-        if (userArrayList.isEmpty()) {
-            noFriendsText.setVisibility(View.VISIBLE);
-            recyclerView.setVisibility(View.GONE);
-        } else {
-            noFriendsText.setVisibility(View.GONE);
-            recyclerView.setVisibility(View.VISIBLE);
-        }
+    private void updateEmptyState() {
+        if (noFriendsLayout == null) return;
+        boolean empty = userList.isEmpty();
+        noFriendsLayout.setVisibility(empty ? View.VISIBLE : View.GONE);
+        recyclerView.setVisibility(empty ? View.GONE : View.VISIBLE);
     }
 
+    // -----------------------------------------------------------------------
+    // Material3 Logout Dialog
+    // -----------------------------------------------------------------------
     private void showLogoutDialog() {
-        logoutDialog = new Dialog(MainActivity.this);
+        logoutDialog = new Dialog(this);
+        logoutDialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
         logoutDialog.setContentView(R.layout.dialog_layout);
-        Button ys = logoutDialog.findViewById(R.id.yslgtmain);
-        Button no = logoutDialog.findViewById(R.id.nolgtmain);
-        ys.setOnClickListener(v1 -> {
+
+        // Make dialog background transparent so the card's rounded corners show
+        if (logoutDialog.getWindow() != null) {
+            logoutDialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+            logoutDialog.getWindow().setLayout(
+                    android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                    android.view.ViewGroup.LayoutParams.WRAP_CONTENT);
+        }
+
+        MaterialButton yesBtn = logoutDialog.findViewById(R.id.yslgtmain);
+        MaterialButton noBtn  = logoutDialog.findViewById(R.id.nolgtmain);
+
+        yesBtn.setOnClickListener(v -> {
+            // Set status to Offline before signing out
             if (auth.getUid() != null) {
-                DatabaseReference userStatusRef = firebaseDatabase.getReference().child("user").child(auth.getUid()).child("status");
-                userStatusRef.setValue("Offline");
+                firebaseDatabase.getReference("user").child(auth.getUid())
+                        .child("status").setValue("Offline");
             }
             FirebaseAuth.getInstance().signOut();
-            startActivity(new Intent(MainActivity.this, login.class));
+            startActivity(new Intent(this, login.class));
             finish();
         });
-        no.setOnClickListener(v12 -> logoutDialog.dismiss());
+
+        noBtn.setOnClickListener(v -> logoutDialog.dismiss());
         logoutDialog.show();
     }
 
+    // -----------------------------------------------------------------------
+    // Presence system — marks user Online/Offline automatically
+    // -----------------------------------------------------------------------
     private void setupPresenceSystem() {
         String uid = auth.getUid();
         if (uid == null) return;
-        final DatabaseReference userStatusRef = firebaseDatabase.getReference().child("user").child(uid).child("status");
-        final DatabaseReference connectedRef = FirebaseDatabase.getInstance().getReference(".info/connected");
+
+        DatabaseReference statusRef = firebaseDatabase.getReference("user").child(uid).child("status");
+        DatabaseReference connectedRef = FirebaseDatabase.getInstance().getReference(".info/connected");
 
         connectedRef.addValueEventListener(new ValueEventListener() {
             @Override
             public void onDataChange(@NonNull DataSnapshot snapshot) {
-                boolean connected = snapshot.getValue(Boolean.class);
-                if (connected) {
-                    userStatusRef.setValue("Online");
-                    userStatusRef.onDisconnect().setValue("Offline");
+                Boolean connected = snapshot.getValue(Boolean.class);
+                if (Boolean.TRUE.equals(connected)) {
+                    statusRef.setValue("Online");
+                    statusRef.onDisconnect().setValue("Offline");
                 }
             }
             @Override

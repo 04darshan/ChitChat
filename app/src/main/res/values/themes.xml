@@ -1,22 +1,135 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+╔══════════════════════════════════════════════════════════════════╗
+║  res/values/themes.xml  (LIGHT MODE)                            ║
+║  Place this file at:  app/src/main/res/values/themes.xml        ║
+║                                                                  ║
+║  The night/dark counterpart lives in:                            ║
+║    app/src/main/res/values-night/themes.xml                      ║
+║                                                                  ║
+║  AndroidManifest.xml → android:theme="@style/Theme.ChitChat"    ║
+╚══════════════════════════════════════════════════════════════════╝
+-->
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- Base application theme. -->
-    <style name="Base.Theme.ChitChat" parent="Theme.Material3.DayNight.NoActionBar">
-        <!-- Customize your light theme here. -->
-        <!-- <item name="colorPrimary">@color/my_light_primary</item> -->
+
+    <!-- ═══════════════════════════════════════════════════
+         1.  MAIN APPLICATION THEME  (Light)
+         Parent picks up all Material3 defaults, we override
+         only what we need.
+         ═══════════════════════════════════════════════════ -->
+    <style name="Theme.ChitChat" parent="Theme.Material3.Light.NoActionBar">
+
+        <!-- Light palette — tokens from res/values/colors.xml (md_theme_* prefix) -->
+        <item name="colorPrimary">@color/md_theme_primary</item>
+        <item name="colorOnPrimary">@color/md_theme_onPrimary</item>
+        <item name="colorPrimaryContainer">@color/md_theme_primaryContainer</item>
+        <item name="colorOnPrimaryContainer">@color/md_theme_onPrimaryContainer</item>
+
+        <!-- Secondary palette -->
+        <item name="colorSecondary">@color/md_theme_secondary</item>
+        <item name="colorOnSecondary">@color/md_theme_onSecondary</item>
+        <item name="colorSecondaryContainer">@color/md_theme_secondaryContainer</item>
+        <item name="colorOnSecondaryContainer">@color/md_theme_onSecondaryContainer</item>
+
+        <!-- Surface tokens -->
+        <item name="colorSurface">@color/md_theme_surface</item>
+        <item name="colorOnSurface">@color/md_theme_onSurface</item>
+        <item name="colorSurfaceVariant">@color/md_theme_surfaceVariant</item>
+        <item name="colorOnSurfaceVariant">@color/md_theme_onSurfaceVariant</item>
+        <item name="colorSurfaceContainer">@color/md_theme_surfaceContainer</item>
+        <item name="colorSurfaceContainerLow">@color/md_theme_surfaceContainerLow</item>
+        <item name="colorSurfaceContainerHigh">@color/md_theme_surfaceContainerHigh</item>
+
+        <!-- Error palette -->
+        <item name="colorError">@color/md_theme_error</item>
+        <item name="colorOnError">@color/md_theme_onError</item>
+        <item name="colorErrorContainer">@color/md_theme_errorContainer</item>
+        <item name="colorOnErrorContainer">@color/md_theme_onErrorContainer</item>
+
+        <!-- Outline -->
+        <item name="colorOutline">@color/md_theme_outline</item>
+        <item name="colorOutlineVariant">@color/md_theme_outlineVariant</item>
+
+        <!-- System bars: transparent so CoordinatorLayout content draws edge-to-edge.
+             windowLightStatusBar=true → dark icons on the light background.
+             The night/themes.xml sets this to false for dark mode. -->
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar" tools:targetApi="m">true</item>
+        <item name="android:windowLightNavigationBar" tools:targetApi="o_mr1">true</item>
+
+        <!-- Poppins typography overrides -->
+        <item name="textAppearanceDisplayLarge">@style/TextAppearance.ChitChat.DisplayLarge</item>
+        <item name="textAppearanceHeadlineLarge">@style/TextAppearance.ChitChat.HeadlineLarge</item>
+        <item name="textAppearanceTitleLarge">@style/TextAppearance.ChitChat.TitleLarge</item>
+        <item name="textAppearanceTitleMedium">@style/TextAppearance.ChitChat.TitleMedium</item>
+        <item name="textAppearanceBodyMedium">@style/TextAppearance.ChitChat.BodyMedium</item>
+        <item name="textAppearanceLabelMedium">@style/TextAppearance.ChitChat.LabelMedium</item>
+
     </style>
 
-    <style name="Theme.ChitChat" parent="Base.Theme.ChitChat" />
-    <style name="dialog">
-        <item name="android:windowBackground">@drawable/empty_background</item>
-        <item name="windowNoTitle">true</item>
-        <item name="windowMinWidthMajor">80%</item>
-        <item name="windowActionBar">false</item>
+    <!-- ═══════════════════════════════════════════════════
+         2.  SPLASH SCREEN  (no action bar, solid background)
+         ═══════════════════════════════════════════════════ -->
+    <style name="Theme.ChitChat.Splash" parent="Theme.ChitChat">
+        <item name="android:windowBackground">@color/md_theme_surface</item>
+    </style>
+
+    <!-- ═══════════════════════════════════════════════════
+         3.  LOGOUT / CUSTOM DIALOG THEME
+         Transparent window so MaterialCardView corner radius is visible.
+         Replaces the broken @drawable/empty_background reference.
+         ═══════════════════════════════════════════════════ -->
+    <style name="Theme.ChitChat.Dialog" parent="Theme.Material3.Light.Dialog">
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowIsFloating">true</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="windowMinWidthMajor">90%</item>
+        <item name="windowMinWidthMinor">90%</item>
+        <!-- Prevent forced dark on dialog too -->
         <item name="android:forceDarkAllowed" tools:targetApi="q">false</item>
     </style>
+
+    <!-- ═══════════════════════════════════════════════════
+         4.  SEARCH VIEW STYLE  (AppCompat SearchView)
+         Colours come from theme tokens so they auto-flip in dark mode.
+         ═══════════════════════════════════════════════════ -->
     <style name="AppSearchViewStyle" parent="Widget.AppCompat.SearchView">
-        <!-- Text color -->
-        <item name="android:textColorPrimary">@color/black</item>
-        <!-- Hint text color -->
-        <item name="android:textColorHint">@android:color/darker_gray</item>
+        <item name="android:textColorPrimary">?attr/colorOnSurface</item>
+        <item name="android:textColorHint">?attr/colorOnSurfaceVariant</item>
     </style>
+
+    <!-- ═══════════════════════════════════════════════════
+         5.  TYPOGRAPHY STYLES
+         ═══════════════════════════════════════════════════ -->
+    <style name="TextAppearance.ChitChat.DisplayLarge"
+        parent="TextAppearance.Material3.DisplayLarge">
+        <item name="fontFamily">@font/poppins_bold</item>
+    </style>
+
+    <style name="TextAppearance.ChitChat.HeadlineLarge"
+        parent="TextAppearance.Material3.HeadlineLarge">
+        <item name="fontFamily">@font/poppins_bold</item>
+    </style>
+
+    <style name="TextAppearance.ChitChat.TitleLarge"
+        parent="TextAppearance.Material3.TitleLarge">
+        <item name="fontFamily">@font/poppins_bold</item>
+    </style>
+
+    <style name="TextAppearance.ChitChat.TitleMedium"
+        parent="TextAppearance.Material3.TitleMedium">
+        <item name="fontFamily">@font/poppins_bold</item>
+    </style>
+
+    <style name="TextAppearance.ChitChat.BodyMedium"
+        parent="TextAppearance.Material3.BodyMedium">
+        <item name="fontFamily">@font/poppins_regular</item>
+    </style>
+
+    <style name="TextAppearance.ChitChat.LabelMedium"
+        parent="TextAppearance.Material3.LabelMedium">
+        <item name="fontFamily">@font/poppins_regular</item>
+    </style>
+
 </resources>

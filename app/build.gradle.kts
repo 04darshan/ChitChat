@@ -46,6 +46,7 @@ dependencies {
     implementation(libs.firebase.storage)
     implementation(libs.firebase.auth)
     implementation(libs.swiperefreshlayout)
+    implementation(libs.material)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.ext.junit)

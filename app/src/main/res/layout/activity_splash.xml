@@ -1,50 +1,84 @@
 <?xml version="1.0" encoding="utf-8"?>
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<!-- REDESIGNED: Material You Splash Screen -->
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
-    android:id="@+id/main"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/white"
+    android:background="?attr/colorSurface"
     tools:context=".splash">
 
+    <!-- Lottie animation (centered) -->
     <com.airbnb.lottie.LottieAnimationView
         android:id="@+id/lottie_animation_view"
-        android:layout_width="300dp"
-        android:layout_height="300dp"
-        android:layout_centerInParent="true"
-        app:lottie_rawRes="@raw/splash_animation"
+        android:layout_width="220dp"
+        android:layout_height="220dp"
+        app:layout_constraintBottom_toTopOf="@+id/appNameText"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_chainStyle="packed"
+        app:layout_constraintVertical_bias="0.45"
         app:lottie_autoPlay="true"
-        app:lottie_loop="true" />
+        app:lottie_loop="true"
+        app:lottie_rawRes="@raw/splash_animation" />
 
-    <!-- UPDATED: This TextView is now positioned ABOVE the animation -->
-
+    <!-- App Name -->
     <TextView
-        android:id="@+id/textView2"
+        android:id="@+id/appNameText"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_alignParentStart="true"
-        android:layout_alignParentEnd="true"
-        android:layout_alignParentBottom="true"
-        android:layout_marginStart="101dp"
-        android:layout_marginEnd="115dp"
-        android:layout_marginBottom="292dp"
-        android:fontFamily="@font/spartan_thin"
-        android:gravity="center"
+        android:layout_marginTop="16dp"
+        android:fontFamily="@font/dancing"
         android:text="ChitChat"
-        android:textColor="@color/black"
-        android:textSize="@dimen/_30sdp"
-        android:textStyle="bold" />
+        android:textColor="?attr/colorPrimary"
+        android:textSize="42sp"
+        android:textStyle="bold"
+        app:layout_constraintBottom_toTopOf="@+id/taglineText"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/lottie_animation_view" />
 
+    <!-- Tagline -->
+    <TextView
+        android:id="@+id/taglineText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:fontFamily="@font/poppins_regular"
+        android:text="Connect. Chat. Share."
+        android:textColor="?attr/colorOnSurfaceVariant"
+        android:textSize="14sp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/appNameText"
+        app:layout_constraintVertical_bias="0.0" />
+
+    <!-- Progress indicator at bottom -->
+    <com.google.android.material.progressindicator.LinearProgressIndicator
+        android:layout_width="120dp"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="48dp"
+        app:indeterminate="true"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:trackCornerRadius="4dp" />
+
+    <!-- Credits -->
     <TextView
         android:id="@+id/textView3"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_alignParentBottom="true"
-        android:layout_centerHorizontal="true"
-        android:layout_marginBottom="20dp"
-        android:fontFamily="@font/spartan_bold"
-        android:text="From Darshan"
-        android:textColor="@color/black" />
+        android:layout_marginBottom="16dp"
+        android:fontFamily="@font/poppins_regular"
+        android:text="Made with ♥ by Darshan"
+        android:textColor="?attr/colorOnSurfaceVariant"
+        android:textSize="11sp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent" />
 
-</RelativeLayout>
+</androidx.constraintlayout.widget.ConstraintLayout>

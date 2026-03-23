@@ -1,85 +1,109 @@
 <?xml version="1.0" encoding="utf-8"?>
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<!-- REDESIGNED: Material You User List Item (Friends list) -->
+<com.google.android.material.card.MaterialCardView
+    xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_margin="13.00dp"
-    android:background="@drawable/bordermain"
-    android:padding="8dp">
+    android:layout_marginHorizontal="12dp"
+    android:layout_marginVertical="4dp"
+    app:cardCornerRadius="20dp"
+    app:cardElevation="0dp"
+    app:cardBackgroundColor="?attr/colorSurfaceContainerLow"
+    app:strokeWidth="0dp">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:gravity="center_vertical">
+        android:padding="12dp">
 
-        <!-- FrameLayout to allow placing badges on top of the image -->
+        <!-- Avatar with badges -->
         <FrameLayout
-            android:layout_width="@dimen/_66sdp"
-            android:layout_height="@dimen/_66sdp">
+            android:layout_width="56dp"
+            android:layout_height="56dp">
 
             <de.hdodenhof.circleimageview.CircleImageView
                 android:id="@+id/llprofile_image"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
+                android:layout_width="56dp"
+                android:layout_height="56dp"
                 android:src="@drawable/photocamera"
-                app:civ_border_color="#FF000000"
-                app:civ_border_width="2dp"/>
+                app:civ_border_color="?attr/colorSurfaceContainerLow"
+                app:civ_border_width="2dp" />
 
-            <!-- The green online status indicator -->
-            <ImageView
+            <!-- Online Status Badge -->
+            <View
                 android:id="@+id/online_status_badge"
-                android:layout_width="18dp"
-                android:layout_height="18dp"
-                android:src="@drawable/online_dot"
+                android:layout_width="14dp"
+                android:layout_height="14dp"
                 android:layout_gravity="bottom|end"
-                android:layout_marginEnd="4dp"
-                android:layout_marginBottom="4dp"
+                android:layout_marginEnd="1dp"
+                android:layout_marginBottom="1dp"
+                android:background="@drawable/online_dot"
                 android:visibility="gone"
-                tools:visibility="visible"/>
+                tools:visibility="visible" />
 
-            <!-- FIXED: Added the missing unread message count badge -->
+            <!-- Unread Count Badge -->
             <TextView
                 android:id="@+id/unread_count_badge"
-                android:layout_width="24dp"
-                android:layout_height="24dp"
+                android:layout_width="20dp"
+                android:layout_height="20dp"
                 android:layout_gravity="top|end"
                 android:background="@drawable/badge_background"
                 android:gravity="center"
                 android:textColor="@android:color/white"
-                android:textSize="12sp"
+                android:textSize="11sp"
                 android:textStyle="bold"
                 android:visibility="gone"
-                tools:text="3"/>
+                tools:text="3"
+                tools:visibility="visible" />
 
         </FrameLayout>
 
+        <!-- User name & status -->
         <LinearLayout
-            android:layout_width="match_parent"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:layout_marginStart="15dp">
+            android:layout_marginStart="14dp"
+            android:layout_weight="1"
+            android:orientation="vertical">
 
             <TextView
                 android:id="@+id/llname"
-                android:layout_width="match_parent"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:ellipsize="end"
                 android:fontFamily="@font/poppins_bold"
+                android:maxLines="1"
                 android:text="Name"
-                android:textSize="20sp"
-                android:textColor="@color/black"/>
+                android:textColor="?attr/colorOnSurface"
+                android:textSize="16sp" />
 
             <TextView
                 android:id="@+id/llstatus"
-                android:layout_width="match_parent"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:ellipsize="end"
                 android:fontFamily="@font/poppins_regular"
+                android:maxLines="1"
                 android:text="Status"
-                android:textSize="12sp"
-                android:textColor="@color/black"/>
+                android:textColor="?attr/colorOnSurfaceVariant"
+                android:textSize="13sp" />
+
         </LinearLayout>
+
+        <!-- Chevron -->
+        <ImageView
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:alpha="0.4"
+            android:contentDescription="Open chat"
+            android:src="@drawable/ic_arrow_back"
+            android:rotation="180"
+            app:tint="?attr/colorOnSurface" />
 
     </LinearLayout>
 
-</RelativeLayout>
+</com.google.android.material.card.MaterialCardView>

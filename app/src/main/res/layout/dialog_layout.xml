@@ -1,57 +1,92 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="325dp"
-    android:layout_height="274dp"
-    android:orientation="vertical"
-    android:layout_gravity="center"
-    android:layout_margin="13dp"
-    android:background="@drawable/shapedialog">
-
-
-    <ImageView
-        android:id="@+id/lgtdialog"
-        android:layout_width="@dimen/_45sdp"
-        android:layout_height="@dimen/_45sdp"
-        android:src="@drawable/logout"
-        android:layout_gravity="center"
-        android:layout_margin="13dp"/>
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Do You Really Want To \n Log Out?"
-        android:textSize="19dp"
-        android:gravity="center"
-        android:layout_margin="@dimen/_8sdp"
-        android:fontFamily="@font/poppins_regular"
-        android:textColor="@color/white"
-        />
+<!-- REDESIGNED: Material You Logout Dialog -->
+<com.google.android.material.card.MaterialCardView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_margin="24dp"
+    app:cardCornerRadius="28dp"
+    app:cardElevation="0dp"
+    app:cardBackgroundColor="?attr/colorSurfaceContainerHigh">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal">
-        <Button
-            android:id="@+id/nolgtmain"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:padding="24dp">
+
+        <!-- Logout icon in tinted container -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="64dp"
+            android:layout_height="64dp"
+            app:cardCornerRadius="20dp"
+            app:cardElevation="0dp"
+            app:cardBackgroundColor="?attr/colorErrorContainer">
+
+            <ImageView
+                android:id="@+id/lgtdialog"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:layout_gravity="center"
+                android:contentDescription="Logout"
+                android:src="@drawable/ic_logout"
+                app:tint="?attr/colorOnErrorContainer" />
+
+        </com.google.android.material.card.MaterialCardView>
+
+        <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_margin="@dimen/_13sdp"
-            android:layout_weight="1"
+            android:layout_marginTop="16dp"
+            android:fontFamily="@font/poppins_bold"
             android:gravity="center"
-            android:text="No"
-            android:textColor="@color/white"
-            android:backgroundTint="@color/black"
-            />
-        <Button
-            android:id="@+id/yslgtmain"
+            android:text="Log Out?"
+            android:textColor="?attr/colorOnSurface"
+            android:textSize="20sp" />
+
+        <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_margin="@dimen/_13sdp"
-            android:layout_weight="1"
+            android:layout_marginTop="8dp"
+            android:fontFamily="@font/poppins_regular"
             android:gravity="center"
-            android:text="Yes"
-            android:textColor="@color/white"
-            android:backgroundTint="@color/black"
-            />
+            android:text="You'll need to sign in again to use ChitChat."
+            android:textColor="?attr/colorOnSurfaceVariant"
+            android:textSize="14sp" />
+
+        <!-- Buttons row -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:orientation="horizontal">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/nolgtmain"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_marginEnd="8dp"
+                android:layout_weight="1"
+                android:fontFamily="@font/poppins_bold"
+                android:text="Cancel"
+                app:cornerRadius="14dp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/yslgtmain"
+                style="@style/Widget.Material3.Button"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:fontFamily="@font/poppins_bold"
+                android:text="Log Out"
+                app:cornerRadius="14dp"
+                app:backgroundTint="?attr/colorError" />
+
+        </LinearLayout>
+
     </LinearLayout>
 
-</LinearLayout>
+</com.google.android.material.card.MaterialCardView>

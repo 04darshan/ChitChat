@@ -1,89 +1,179 @@
 <?xml version="1.0" encoding="utf-8"?>
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<!-- REDESIGNED: Material You Chat Screen -->
+<androidx.coordinatorlayout.widget.CoordinatorLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
-    android:id="@+id/main"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@drawable/chatback"
+    android:background="?attr/colorSurface"
     tools:context=".chatscreen">
 
-    <!-- Header -->
-    <LinearLayout
-        android:id="@+id/lll"
+    <!-- Top App Bar with receiver info -->
+    <com.google.android.material.appbar.AppBarLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:gravity="center">
+        android:background="?attr/colorSurfaceContainer">
 
-        <de.hdodenhof.circleimageview.CircleImageView
-            android:id="@+id/profile_chat"
-            android:layout_width="96dp"
-            android:layout_height="96dp"
-            android:src="@drawable/photocamera"
-            app:civ_border_color="#FF000000"
-            app:civ_border_width="2dp" />
-
-        <TextView
-            android:id="@+id/recivername"
+        <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Darshan Patel"
-            android:textColor="@color/white"
-            android:textAlignment="center"
-            android:layout_margin="13dp"
-            android:gravity="center"
-            android:textSize="@dimen/_20sdp"
-            android:fontFamily="@font/poppins_regular" />
-    </LinearLayout>
+            android:layout_height="?attr/actionBarSize"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="4dp"
+            android:paddingEnd="16dp">
 
-    <!-- RecyclerView -->
+            <!-- Back Button -->
+            <ImageButton
+                android:id="@+id/backButton"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Back"
+                android:src="@drawable/ic_arrow_back"
+                app:tint="?attr/colorOnSurface" />
+
+            <!-- Receiver Profile + Name/Status row -->
+            <de.hdodenhof.circleimageview.CircleImageView
+                android:id="@+id/profile_chat"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_marginStart="4dp"
+                android:src="@drawable/photocamera"
+                app:civ_border_color="?attr/colorPrimary"
+                app:civ_border_width="2dp" />
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/recivername"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:ellipsize="end"
+                    android:fontFamily="@font/poppins_bold"
+                    android:maxLines="1"
+                    android:text="Contact Name"
+                    android:textColor="?attr/colorOnSurface"
+                    android:textSize="16sp" />
+
+                <!-- Typing indicator / online status -->
+                <TextView
+                    android:id="@+id/typingIndicator"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="@font/poppins_regular"
+                    android:text="online"
+                    android:textColor="?attr/colorPrimary"
+                    android:textSize="12sp"
+                    android:visibility="gone"
+                    tools:text="typing..."
+                    tools:visibility="visible" />
+
+            </LinearLayout>
+
+            <!-- Call / Video buttons (future feature placeholders) -->
+            <ImageButton
+                android:id="@+id/videoCallBtn"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_marginEnd="4dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Video Call"
+                android:src="@drawable/ic_videocam"
+                android:alpha="0.5"
+                app:tint="?attr/colorOnSurface" />
+
+        </LinearLayout>
+
+        <!-- Subtle divider -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="?attr/colorOutlineVariant" />
+
+    </com.google.android.material.appbar.AppBarLayout>
+
+    <!-- Messages RecyclerView -->
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/msgadapter"
         android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_below="@id/lll"
-        android:layout_above="@id/sendMessageLayout"
-        android:padding="13dp" />
+        android:layout_height="match_parent"
+        android:clipToPadding="false"
+        android:overScrollMode="never"
+        android:paddingTop="8dp"
+        android:paddingBottom="8dp"
+        app:layout_behavior="@string/appbar_scrolling_view_behavior"
+        tools:listitem="@layout/sender_layout" />
 
-    <!-- Message input area -->
+    <!-- Message Input Bar (anchored to bottom) -->
     <LinearLayout
-        android:id="@+id/sendMessageLayout"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_alignParentBottom="true"
+        android:layout_gravity="bottom"
+        android:background="?attr/colorSurfaceContainer"
+        android:elevation="4dp"
+        android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:padding="6dp">
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:paddingTop="8dp"
+        android:paddingBottom="8dp">
 
-        <androidx.cardview.widget.CardView
+        <!-- Attachment Button -->
+        <ImageButton
+            android:id="@+id/attachmentBtn"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginEnd="4dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Attach"
+            android:src="@drawable/ic_attachment"
+            app:tint="?attr/colorOnSurfaceVariant" />
+
+        <!-- Message Input Field -->
+        <com.google.android.material.textfield.TextInputLayout
+            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
             android:layout_width="0dp"
-            android:layout_height="45dp"
+            android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:layout_marginEnd="8dp"
-            app:cardCornerRadius="32dp">
+            app:boxCornerRadiusTopStart="24dp"
+            app:boxCornerRadiusTopEnd="24dp"
+            app:boxCornerRadiusBottomStart="24dp"
+            app:boxCornerRadiusBottomEnd="24dp"
+            app:hintEnabled="false">
 
-            <EditText
+            <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/chatboxxxx"
                 android:layout_width="match_parent"
-                android:layout_height="match_parent"
+                android:layout_height="wrap_content"
                 android:background="@null"
                 android:fontFamily="@font/poppins_regular"
-                android:hint="Type a message..."
-                android:paddingStart="13dp" />
-        </androidx.cardview.widget.CardView>
+                android:hint="Message..."
+                android:inputType="textMultiLine|textCapSentences"
+                android:maxLines="5"
+                android:minHeight="48dp"
+                android:paddingStart="16dp"
+                android:paddingEnd="8dp"
+                android:textSize="14sp" />
 
-        <androidx.cardview.widget.CardView
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <!-- Send Button -->
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
             android:id="@+id/sendchatbtn"
-            android:layout_width="55dp"
-            android:layout_height="45dp"
-            app:cardCornerRadius="32dp">
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:contentDescription="Send"
+            android:src="@drawable/sendbut"
+            app:fabSize="mini"
+            app:tint="?attr/colorOnPrimary" />
 
-            <ImageView
-                android:layout_width="24dp"
-                android:layout_height="24dp"
-                android:layout_gravity="center"
-                android:src="@drawable/sendbut" />
-        </androidx.cardview.widget.CardView>
     </LinearLayout>
 
-</RelativeLayout>
+</androidx.coordinatorlayout.widget.CoordinatorLayout>

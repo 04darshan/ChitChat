@@ -1,18 +1,21 @@
 package com.example.chitchat;
 
 import android.os.Bundle;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.view.View;
-import android.widget.EditText;
+import android.widget.ImageButton;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.cardview.widget.CardView;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.bumptech.glide.Glide;
+import com.google.android.material.floatingactionbutton.FloatingActionButton;
+import com.google.android.material.textfield.TextInputEditText;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseError;
@@ -29,17 +32,23 @@ import de.hdodenhof.circleimageview.CircleImageView;
 
 public class chatscreen extends AppCompatActivity {
 
-    String reciverimg, recivername, reciveruid, senderUid, senderImg;
-    CircleImageView pfl;
-    TextView txtrecname;
-    CardView sendbtn;
-    EditText msgbox;
-    RecyclerView recyclerViewadapter;
-    ArrayList<msgModel> msgesArrylist;
+    // --- BUG FIX: renamed for clarity; reciveruid → receiverUid ---
+    String receiverImg, receiverName, receiverUid, senderUid, senderImg;
+    CircleImageView profileImageView;
+    TextView receiverNameText, typingIndicator;
+    FloatingActionButton sendBtn;
+    TextInputEditText msgBox;
+    RecyclerView recyclerView;
+    ArrayList<msgModel> messageList;
     FirebaseAuth firebaseAuth;
     FirebaseDatabase database;
     MsgAdapter msgAdapter;
-    String senderRoom;
+    String chatRoomId;
+
+    // Typing indicator debounce handler
+    private final android.os.Handler typingHandler = new android.os.Handler();
+    private Runnable stopTypingRunnable;
+    private boolean isTyping = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -49,101 +58,195 @@ public class chatscreen extends AppCompatActivity {
         firebaseAuth = FirebaseAuth.getInstance();
         database = FirebaseDatabase.getInstance();
 
-        recivername = getIntent().getStringExtra("nameee");
-        reciverimg = getIntent().getStringExtra("reciverimg");
-        reciveruid = getIntent().getStringExtra("uid");
-        senderUid = firebaseAuth.getUid();
+        receiverName = getIntent().getStringExtra("nameee");
+        receiverImg  = getIntent().getStringExtra("reciverimg");
+        receiverUid  = getIntent().getStringExtra("uid");
 
-        if (senderUid.hashCode() < reciveruid.hashCode()) {
-            senderRoom = senderUid + reciveruid;
+        // BUG FIX: Null-check on currentUser before calling getUid()
+        if (firebaseAuth.getCurrentUser() == null) {
+            finish();
+            return;
+        }
+        senderUid = firebaseAuth.getCurrentUser().getUid();
+
+        // BUG FIX: Use string comparison instead of hashCode() to avoid collisions.
+        // Lexicographic ordering guarantees a unique, collision-free room ID.
+        if (senderUid.compareTo(receiverUid) < 0) {
+            chatRoomId = senderUid + "_" + receiverUid;
         } else {
-            senderRoom = reciveruid + senderUid;
+            chatRoomId = receiverUid + "_" + senderUid;
         }
 
-        pfl = findViewById(R.id.profile_chat);
-        txtrecname = findViewById(R.id.recivername);
-        msgbox = findViewById(R.id.chatboxxxx);
-        sendbtn = findViewById(R.id.sendchatbtn);
-        recyclerViewadapter = findViewById(R.id.msgadapter);
+        // View bindings
+        profileImageView = findViewById(R.id.profile_chat);
+        receiverNameText = findViewById(R.id.recivername);
+        typingIndicator  = findViewById(R.id.typingIndicator);
+        msgBox           = findViewById(R.id.chatboxxxx);
+        sendBtn          = findViewById(R.id.sendchatbtn);
+        recyclerView     = findViewById(R.id.msgadapter);
 
-        msgesArrylist = new ArrayList<>();
-        txtrecname.setText(recivername);
-        Glide.with(this).load(reciverimg).placeholder(R.drawable.man).into(pfl);
+        // Back button
+        ImageButton backButton = findViewById(R.id.backButton);
+        if (backButton != null) {
+            backButton.setOnClickListener(v -> onBackPressed());
+        }
+
+        messageList = new ArrayList<>();
+        receiverNameText.setText(receiverName);
+        Glide.with(this).load(receiverImg).placeholder(R.drawable.man).into(profileImageView);
 
         LinearLayoutManager layoutManager = new LinearLayoutManager(this);
         layoutManager.setStackFromEnd(true);
-        recyclerViewadapter.setLayoutManager(layoutManager);
+        recyclerView.setLayoutManager(layoutManager);
 
-        // Fetch sender's image to pass to the adapter
-        DatabaseReference reference = database.getReference().child("user").child(senderUid);
-        reference.addListenerForSingleValueEvent(new ValueEventListener() {
+        // Fetch sender's profile picture, then set up the adapter and listeners
+        DatabaseReference senderRef = database.getReference("user").child(senderUid);
+        senderRef.addListenerForSingleValueEvent(new ValueEventListener() {
             @Override
             public void onDataChange(@NonNull DataSnapshot snapshot) {
                 senderImg = snapshot.child("profilepic").getValue(String.class);
-                msgAdapter = new MsgAdapter(chatscreen.this, msgesArrylist, senderImg, reciverimg);
-                recyclerViewadapter.setAdapter(msgAdapter);
+                msgAdapter = new MsgAdapter(chatscreen.this, messageList, senderImg, receiverImg);
+                recyclerView.setAdapter(msgAdapter);
+                listenForMessages();
             }
             @Override
-            public void onCancelled(@NonNull DatabaseError error) {}
-        });
-
-        // Listen for messages and mark them as seen
-        DatabaseReference chatreference = database.getReference().child("chats").child(senderRoom).child("messages");
-        chatreference.addValueEventListener(new ValueEventListener() {
-            @Override
-            public void onDataChange(@NonNull DataSnapshot snapshot) {
-                msgesArrylist.clear();
-                for (DataSnapshot dataSnapshot : snapshot.getChildren()) {
-                    msgModel messagesss = dataSnapshot.getValue(msgModel.class);
-                    // Mark the message as seen if it wasn't sent by the current user
-                    if (messagesss != null && !messagesss.getSenderId().equals(senderUid) && !messagesss.getIsSeen()) {
-                        dataSnapshot.getRef().child("isSeen").setValue(true);
-                    }
-                    msgesArrylist.add(messagesss);
-                }
-                if(msgAdapter != null) {
-                    msgAdapter.notifyDataSetChanged();
-                    recyclerViewadapter.scrollToPosition(msgesArrylist.size() - 1);
-                }
+            public void onCancelled(@NonNull DatabaseError error) {
+                // Still set up adapter so app doesn't hang
+                msgAdapter = new MsgAdapter(chatscreen.this, messageList, null, receiverImg);
+                recyclerView.setAdapter(msgAdapter);
+                listenForMessages();
             }
-            @Override
-            public void onCancelled(@NonNull DatabaseError error) {}
         });
 
-        sendbtn.setOnClickListener(v -> {
-            String msg = msgbox.getText().toString();
+        // Send button click
+        sendBtn.setOnClickListener(v -> {
+            if (msgBox.getText() == null) return;
+            String msg = msgBox.getText().toString().trim();
             if (msg.isEmpty()) {
-                Toast.makeText(chatscreen.this, "Enter a message", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "Enter a message", Toast.LENGTH_SHORT).show();
                 return;
             }
-            msgbox.setText("");
+            msgBox.setText("");
+            stopTypingState(); // clear typing indicator before sending
             sendMessage(msg);
+        });
+
+        // Typing indicator
+        setupTypingIndicator();
+    }
+
+    // -----------------------------------------------------------------------
+    // FEATURE: Real-time typing indicator
+    // -----------------------------------------------------------------------
+    private void setupTypingIndicator() {
+        DatabaseReference typingRef = database.getReference("chats")
+                .child(chatRoomId).child("typing").child(receiverUid);
+
+        // Watch whether the OTHER person is typing
+        typingRef.addValueEventListener(new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                Boolean isReceiverTyping = snapshot.getValue(Boolean.class);
+                if (isReceiverTyping != null && isReceiverTyping) {
+                    typingIndicator.setText("typing...");
+                    typingIndicator.setVisibility(View.VISIBLE);
+                } else {
+                    typingIndicator.setVisibility(View.GONE);
+                }
+            }
+            @Override
+            public void onCancelled(@NonNull DatabaseError error) {}
+        });
+
+        // Publish OUR typing state
+        DatabaseReference myTypingRef = database.getReference("chats")
+                .child(chatRoomId).child("typing").child(senderUid);
+
+        stopTypingRunnable = () -> {
+            isTyping = false;
+            myTypingRef.setValue(false);
+        };
+
+        msgBox.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int i, int i1, int i2) {}
+            @Override public void afterTextChanged(Editable s) {}
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                if (!isTyping) {
+                    isTyping = true;
+                    myTypingRef.setValue(true);
+                }
+                typingHandler.removeCallbacks(stopTypingRunnable);
+                typingHandler.postDelayed(stopTypingRunnable, 2000); // stop after 2s idle
+            }
         });
     }
 
-    private void sendMessage(String message) {
-        Date date = new Date();
-        // The constructor now includes the 'isSeen' field
-        msgModel modelmsd = new msgModel(message, senderUid, date.getTime());
+    private void stopTypingState() {
+        typingHandler.removeCallbacks(stopTypingRunnable);
+        isTyping = false;
+        database.getReference("chats").child(chatRoomId)
+                .child("typing").child(senderUid).setValue(false);
+    }
 
-        DatabaseReference chatRoomRef = database.getReference().child("chats").child(senderRoom);
-
-        // Push the new message object
-        chatRoomRef.child("messages").push().setValue(modelmsd);
-
-        // Update the last message for the main screen preview
-        Map<String, Object> lastMsgObj = new HashMap<>();
-        lastMsgObj.put("lastMessage", message);
-        lastMsgObj.put("lastMessageTimestamp", date.getTime());
-        chatRoomRef.updateChildren(lastMsgObj);
-
-        // Increment the receiver's unread count
-        DatabaseReference receiverUnreadRef = chatRoomRef.child("unreadCount").child(reciveruid);
-        receiverUnreadRef.addListenerForSingleValueEvent(new ValueEventListener() {
+    // -----------------------------------------------------------------------
+    // FEATURE: Message listener — marks received messages as seen
+    // -----------------------------------------------------------------------
+    private void listenForMessages() {
+        DatabaseReference chatRef = database.getReference("chats").child(chatRoomId).child("messages");
+        chatRef.addValueEventListener(new ValueEventListener() {
             @Override
             public void onDataChange(@NonNull DataSnapshot snapshot) {
-                long currentCount = snapshot.exists() ? snapshot.getValue(Long.class) : 0;
-                receiverUnreadRef.setValue(currentCount + 1);
+                messageList.clear();
+                for (DataSnapshot dataSnapshot : snapshot.getChildren()) {
+                    msgModel message = dataSnapshot.getValue(msgModel.class);
+                    if (message == null) continue;
+
+                    // BUG FIX: Null-check on senderId before comparing
+                    if (message.getSenderId() != null
+                            && !message.getSenderId().equals(senderUid)
+                            && !message.getIsSeen()) {
+                        dataSnapshot.getRef().child("isSeen").setValue(true);
+                    }
+                    messageList.add(message);
+                }
+                if (msgAdapter != null) {
+                    msgAdapter.notifyDataSetChanged();
+                    if (!messageList.isEmpty()) {
+                        recyclerView.scrollToPosition(messageList.size() - 1);
+                    }
+                }
+            }
+            @Override
+            public void onCancelled(@NonNull DatabaseError error) {}
+        });
+    }
+
+    // -----------------------------------------------------------------------
+    // Send a message + update last-message preview + increment unread count
+    // -----------------------------------------------------------------------
+    private void sendMessage(String message) {
+        long timestamp = new Date().getTime();
+        msgModel model = new msgModel(message, senderUid, timestamp);
+
+        DatabaseReference chatRoomRef = database.getReference("chats").child(chatRoomId);
+
+        chatRoomRef.child("messages").push().setValue(model);
+
+        // Update last message preview
+        Map<String, Object> lastMsgUpdate = new HashMap<>();
+        lastMsgUpdate.put("lastMessage", message);
+        lastMsgUpdate.put("lastMessageTimestamp", timestamp);
+        chatRoomRef.updateChildren(lastMsgUpdate);
+
+        // Increment receiver's unread count atomically
+        DatabaseReference unreadRef = chatRoomRef.child("unreadCount").child(receiverUid);
+        unreadRef.addListenerForSingleValueEvent(new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                long current = snapshot.exists() && snapshot.getValue(Long.class) != null
+                        ? snapshot.getValue(Long.class) : 0L;
+                unreadRef.setValue(current + 1);
             }
             @Override
             public void onCancelled(@NonNull DatabaseError error) {}
@@ -153,10 +256,23 @@ public class chatscreen extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        // When the user enters the chat, reset their unread count for this chat
-        if (senderRoom != null && senderUid != null) {
-            database.getReference().child("chats").child(senderRoom)
+        // Reset our unread count when we open the chat
+        if (chatRoomId != null && senderUid != null) {
+            database.getReference("chats").child(chatRoomId)
                     .child("unreadCount").child(senderUid).setValue(0L);
         }
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        // BUG FIX: Always clear typing indicator when leaving the screen
+        stopTypingState();
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        typingHandler.removeCallbacksAndMessages(null);
     }
 }

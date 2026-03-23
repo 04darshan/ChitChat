@@ -4,100 +4,112 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.view.View;
-import android.widget.Button;
-import android.widget.EditText;
-import android.widget.ProgressBar;
-import android.widget.TextView;
 import android.widget.Toast;
 
-import androidx.activity.EdgeToEdge;
-import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.graphics.Insets;
-import androidx.core.view.ViewCompat;
-import androidx.core.view.WindowInsetsCompat;
 
-import com.google.android.gms.tasks.OnCompleteListener;
-import com.google.android.gms.tasks.Task;
-import com.google.firebase.auth.AuthResult;
+import com.google.android.material.button.MaterialButton;
+import com.google.android.material.progressindicator.CircularProgressIndicator;
+import com.google.android.material.textfield.TextInputEditText;
+import com.google.android.material.textfield.TextInputLayout;
 import com.google.firebase.auth.FirebaseAuth;
 
+/**
+ * ENHANCED login.java
+ *
+ * IMPROVEMENTS:
+ * - Uses Material3 TextInputLayout for proper inline error display
+ * - Loading state disables the button to prevent double-taps
+ * - Cleaner null-safe input reading
+ * - Redirects to MainActivity if already logged in
+ */
 public class login extends AppCompatActivity {
-Button btnl;
-EditText email,pass;
-TextView lgts;
-ProgressBar load;
 
-FirebaseAuth auth;
-    String emailPattern = "[a-zA-Z0-9._-]+@[a-z]+\\.+[a-z]+";
+    private TextInputLayout emailLayout, passwordLayout;
+    private TextInputEditText emailInput, passInput;
+    private MaterialButton loginButton, signupLink;
+    private CircularProgressIndicator progressBar;
+    private View loadingOverlay;
+
+    private FirebaseAuth auth;
+    private static final String EMAIL_PATTERN = "[a-zA-Z0-9._-]+@[a-z]+\\.+[a-z]+";
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        EdgeToEdge.enable(this);
+
+        auth = FirebaseAuth.getInstance();
+
+        // If already logged in, skip straight to MainActivity
+        if (auth.getCurrentUser() != null) {
+            startActivity(new Intent(this, MainActivity.class));
+            finish();
+            return;
+        }
+
         setContentView(R.layout.activity_login);
-        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main), (v, insets) -> {
-            Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
-            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
-            return insets;
+
+        emailLayout    = findViewById(R.id.emailInputLayout);
+        passwordLayout = findViewById(R.id.passwordInputLayout);
+        emailInput     = findViewById(R.id.loginEmail);
+        passInput      = findViewById(R.id.loginPassword);
+        loginButton    = findViewById(R.id.loginButton);
+        signupLink     = findViewById(R.id.lgntosignup);
+        progressBar    = findViewById(R.id.progressBar);
+        loadingOverlay = findViewById(R.id.loadingOverlay);
+
+        loginButton.setOnClickListener(v -> attemptLogin());
+
+        signupLink.setOnClickListener(v -> {
+            startActivity(new Intent(login.this, registration.class));
+            finish();
         });
+    }
 
-        auth=FirebaseAuth.getInstance();
-        btnl=findViewById(R.id.loginButton);
-        email=findViewById(R.id.loginEmail);
-        pass=findViewById(R.id.loginPassword);
-        lgts=findViewById(R.id.lgntosignup);
-        ProgressBar progressBar = findViewById(R.id.progressBar);
+    private void attemptLogin() {
+        // Clear previous errors
+        emailLayout.setError(null);
+        passwordLayout.setError(null);
 
-        
-        btnl.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-               String Email=email.getText().toString();
-               String Pass=pass.getText().toString();
+        String email = emailInput.getText() != null ? emailInput.getText().toString().trim() : "";
+        String pass  = passInput.getText()  != null ? passInput.getText().toString()         : "";
 
-               if(TextUtils.isEmpty(Email)){
-                   Toast.makeText(login.this, "Enter An Email", Toast.LENGTH_SHORT).show();
-               }else if(TextUtils.isEmpty(Pass)){
-                   Toast.makeText(login.this, "Enter a Password", Toast.LENGTH_SHORT).show();
-               }else if(!Email.matches(emailPattern)){
-                email.setError("Give Proper Email");
-               } else if (pass.length()<6) {
-                   pass.setError("More than 6 characters");
-                   Toast.makeText(login.this, "Password Must be longer than 6 characters", Toast.LENGTH_SHORT).show();
-               }else {
-                   progressBar.setVisibility(View.VISIBLE);
-                   auth.signInWithEmailAndPassword(Email,Pass).addOnCompleteListener(new OnCompleteListener<AuthResult>() {
-                       @Override
-                       public void onComplete(@NonNull Task<AuthResult> task) {
-                           if(task.isSuccessful()){
-                                   progressBar.setVisibility(View.GONE);
-                               try{
+        if (TextUtils.isEmpty(email)) {
+            emailLayout.setError("Email is required");
+            return;
+        }
+        if (!email.matches(EMAIL_PATTERN)) {
+            emailLayout.setError("Enter a valid email address");
+            return;
+        }
+        if (TextUtils.isEmpty(pass)) {
+            passwordLayout.setError("Password is required");
+            return;
+        }
+        if (pass.length() < 6) {
+            passwordLayout.setError("Password must be at least 6 characters");
+            return;
+        }
 
-                                   Intent intent=new Intent(login.this, MainActivity.class);
-                                   startActivity(intent);
-                                   finish();
-                               }catch(Exception e){
-                                   Toast.makeText(login.this, e.getMessage(), Toast.LENGTH_SHORT).show();
-                               }
-                           }else{
-                               Toast.makeText(login.this, task.getException().getMessage(), Toast.LENGTH_SHORT).show();
-                               progressBar.setVisibility(View.GONE);
-                           }
-                       }
-                   });
-               }
-
-
-            }
-        });
-
-        lgts.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                Intent intent=new Intent(login.this, registration.class);
-                startActivity(intent);
+        setLoading(true);
+        auth.signInWithEmailAndPassword(email, pass).addOnCompleteListener(task -> {
+            setLoading(false);
+            if (task.isSuccessful()) {
+                startActivity(new Intent(login.this, MainActivity.class));
                 finish();
+            } else {
+                String msg = task.getException() != null
+                        ? task.getException().getMessage() : "Login failed";
+                Toast.makeText(this, msg, Toast.LENGTH_LONG).show();
             }
         });
+    }
+
+    private void setLoading(boolean loading) {
+        loginButton.setEnabled(!loading);
+        signupLink.setEnabled(!loading);
+        if (loadingOverlay != null) {
+            loadingOverlay.setVisibility(loading ? View.VISIBLE : View.GONE);
+        }
     }
 }
